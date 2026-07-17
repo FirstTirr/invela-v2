@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Plus, Trash2, X, User, Key, Shield, Network, Eye, EyeOff } from 'lucide-react';
+import { apiJurusan, Jurusan } from '@/lib/api'; // Mengimpor helper API Jurusan
 
 interface UserAccount {
   id: string;
   username: string;
-  jurusan: string;
+  jurusan: string; // Menggunakan jurusan kembali
   role: string;
 }
 
@@ -15,11 +16,15 @@ export default function UsersCRUDPage() {
   const [isOpenModal, setIsOpenModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   
+  // State untuk menyimpan data jurusan dari database Go
+  const [jurusanList, setJurusanList] = useState<Jurusan[]>([]);
+  const [loadingJurusan, setLoadingJurusan] = useState<boolean>(false);
+  
   const [formData, setFormData] = useState({
     username: '',
     password: '',
     role: 'kabeng',
-    jurusan: 'pplg'
+    jurusan: '' // Menggunakan field jurusan kembali
   });
 
   const [users, setUsers] = useState<UserAccount[]>([
@@ -28,7 +33,29 @@ export default function UsersCRUDPage() {
     { id: '3', username: 'sapras_school@smkn4pyk.com', jurusan: 'Semua Jurusan', role: 'Sapras' },
   ]);
 
-  const dummyJurusan = ['PPLG', 'TKJ', 'DKV', 'TITL'];
+  // Ambil data jurusan dari backend setiap kali modal dibuka
+  useEffect(() => {
+    const fetchJurusanData = async () => {
+      try {
+        setLoadingJurusan(true);
+        const data = await apiJurusan.getAll();
+        setJurusanList(data);
+        
+        // Set default value dropdown ke jurusan pertama jika data tersedia
+        if (data.length > 0) {
+          setFormData(prev => ({ ...prev, jurusan: data[0].nama_jurusan }));
+        }
+      } catch (err) {
+        console.error("Gagal mengambil data jurusan:", err);
+      } finally {
+        setLoadingJurusan(false);
+      }
+    };
+
+    if (isOpenModal) {
+      fetchJurusanData();
+    }
+  }, [isOpenModal]);
 
   const handleDelete = (id: string) => {
     setUsers(users.filter(u => u.id !== id));
@@ -37,7 +64,6 @@ export default function UsersCRUDPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Mapping role display name
     const roleMapping: Record<string, string> = {
       kabeng: 'Kabeng',
       kaprog: 'Kaprog',
@@ -47,7 +73,8 @@ export default function UsersCRUDPage() {
     const newAccount: UserAccount = {
       id: Date.now().toString(),
       username: formData.username,
-      jurusan: formData.role === 'sapras' ? 'Semua Jurusan' : formData.jurusan.toUpperCase(),
+      // Jika Sapras, otomatis kelola semua jurusan
+      jurusan: formData.role === 'sapras' ? 'Semua Jurusan' : formData.jurusan,
       role: roleMapping[formData.role] || 'Kabeng'
     };
 
@@ -55,7 +82,7 @@ export default function UsersCRUDPage() {
     setIsOpenModal(false);
     
     // Reset form
-    setFormData({ username: '', password: '', role: 'kabeng', jurusan: 'pplg' });
+    setFormData({ username: '', password: '', role: 'kabeng', jurusan: jurusanList[0]?.nama_jurusan || '' });
     setShowPassword(false);
   };
 
@@ -78,42 +105,44 @@ export default function UsersCRUDPage() {
         </div>
 
         {/* Table Monitoring */}
-        <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-sm">
-          <table className="w-full text-left border-collapse text-base">
-            <thead className="bg-surface-low border-b border-surface-container-high">
-              <tr>
-                <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Username</th>
-                <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Jurusan Kelolaan</th>
-                <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Hak Akses Role</th>
-                <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider text-right">Aksi</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-container text-on-surface font-medium">
-              {users.map((user) => (
-                <tr key={user.id} className="hover:bg-surface-low/30 transition-colors">
-                  <td className="p-5 text-base font-bold text-primary">{user.username}</td>
-                  <td className="p-5 text-base text-on-surface-variant font-bold">{user.jurusan}</td>
-                  <td className="p-5">
-                    <span className={`inline-block px-3 py-1 rounded-md text-sm font-bold border ${
-                      user.role === 'Kabeng' ? 'bg-blue-100 text-blue-900 border-blue-300' :
-                      user.role === 'Kaprog' ? 'bg-purple-100 text-purple-900 border-purple-300' : 
-                      'bg-amber-100 text-amber-900 border-amber-300'
-                    }`}>
-                      {user.role}
-                    </span>
-                  </td>
-                  <td className="p-5 text-right">
-                    <button 
-                      onClick={() => handleDelete(user.id)}
-                      className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </td>
+        <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-sm w-full">
+          <div className="overflow-x-auto w-full whitespace-nowrap">
+            <table className="w-full text-left border-collapse text-base min-w-[600px]">
+              <thead className="bg-surface-low border-b border-surface-container-high">
+                <tr>
+                  <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Username</th>
+                  <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Jurusan Kelolaan</th>
+                  <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Hak Akses Role</th>
+                  <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider text-right">Aksi</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-surface-container text-on-surface font-medium">
+                {users.map((user) => (
+                  <tr key={user.id} className="hover:bg-surface-low/30 transition-colors">
+                    <td className="p-5 text-base font-bold text-primary">{user.username}</td>
+                    <td className="p-5 text-base text-on-surface-variant font-bold uppercase">{user.jurusan}</td>
+                    <td className="p-5">
+                      <span className={`inline-block px-3 py-1 rounded-md text-sm font-bold border ${
+                        user.role === 'Kabeng' ? 'bg-blue-100 text-blue-900 border-blue-300' :
+                        user.role === 'Kaprog' ? 'bg-purple-100 text-purple-900 border-purple-300' : 
+                        'bg-amber-100 text-amber-900 border-amber-300'
+                      }`}>
+                        {user.role}
+                      </span>
+                    </td>
+                    <td className="p-5 text-right">
+                      <button 
+                        onClick={() => handleDelete(user.id)}
+                        className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Modal Dialog Form Tambah Akun */}
@@ -135,7 +164,7 @@ export default function UsersCRUDPage() {
               {/* Modal Form Content */}
               <form onSubmit={handleSubmit} className="space-y-5">
                 
-                {/* Username dengan Validasi Wajib @smkn4pyk.com */}
+                {/* Username */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
                     <User className="w-3.5 h-3.5" /> Username (Wajib Smkn4pyk.com)
@@ -152,7 +181,7 @@ export default function UsersCRUDPage() {
                   />
                 </div>
 
-                {/* Password dengan Fitur Intip/Lihat */}
+                {/* Password */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
                     <Key className="w-3.5 h-3.5" /> Password
@@ -197,25 +226,32 @@ export default function UsersCRUDPage() {
                   </div>
                 </div>
 
-                {/* Afiliasi Jurusan */}
+                {/* 🔄 AFILIASI JURUSAN SEKARANG BERISI DATA JURUSAN DINAMIS DARI BACKEND GO */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
-                    <Network className="w-3.5 h-3.5" /> Afiliasi Jurusan
+                    <Network className="w-4 h-4" /> Afiliasi Jurusan Kelolaan
                   </label>
                   <div className="relative">
                     <select 
-                      disabled={formData.role === 'sapras'}
+                      disabled={formData.role === 'sapras' || loadingJurusan}
                       value={formData.role === 'sapras' ? 'all' : formData.jurusan}
                       onChange={(e) => setFormData({...formData, jurusan: e.target.value})}
-                      className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-bold shadow-sm appearance-none cursor-pointer disabled:bg-surface-low disabled:text-outline disabled:cursor-not-allowed"
+                      className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-bold shadow-sm appearance-none cursor-pointer disabled:bg-surface-low disabled:text-outline disabled:cursor-not-allowed uppercase"
                     >
-                      {dummyJurusan.map((jurus, i) => (
-                        <option key={i} value={jurus.toLowerCase()}>{jurus}</option>
-                      ))}
-                      <option value="all">Semua Jurusan (Khusus Sapras)</option>
+                      {formData.role === 'sapras' ? (
+                        <option value="all">Semua Jurusan (Khusus Sapras)</option>
+                      ) : (
+                        jurusanList.map((j) => (
+                          <option key={j.id} value={j.nama_jurusan}>{j.nama_jurusan}</option>
+                        ))
+                      )}
                     </select>
                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-outline">
-                      <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                      {loadingJurusan ? (
+                        <span className="text-xs text-outline animate-pulse">Loading...</span>
+                      ) : (
+                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                      )}
                     </div>
                   </div>
                 </div>

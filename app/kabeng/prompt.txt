@@ -1,3 +1,6 @@
+kasih get jurusan disini
+
+app/kabeng/items/page.tsx:
 "use client";
 
 import React, { useState } from 'react';
@@ -199,3 +202,5 @@ export default function KabengItemsPage() {
     </PageAnimateWrapper>
   );
 }
+
+kasih juga field unutk input keterangan di add item ini (tapi buat agra yang ini opsional, maksud nya jika tidak diisi maka tidak apa apa, sementara yang lain itu wajib diisi)

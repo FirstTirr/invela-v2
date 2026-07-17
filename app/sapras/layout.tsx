@@ -1,0 +1,92 @@
+"use client";
+
+import React from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { LayoutDashboard, Package, AlertTriangle, ShieldCheck, LogOut } from 'lucide-react';
+import { Separator } from "@/components/ui/separator";
+
+export default function SaprasLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
+  const saprasMenu = [
+    { title: 'Dashboard Overview', href: '/sapras', icon: LayoutDashboard },
+    { title: 'Daftar Aset Sekolah', href: '/sapras/items', icon: Package },
+    { title: 'Log Kerusakan & Biaya', href: '/sapras/damages', icon: AlertTriangle },
+  ];
+
+  return (
+    <div className="min-h-screen bg-background text-on-surface antialiased flex selection:bg-secondary-container">
+      
+      {/* Sidebar Bawaan Premium */}
+      <aside className="fixed inset-y-0 left-0 w-[280px] bg-white border-r border-surface-container-high flex flex-col z-20">
+        
+        {/* Header */}
+        <div className="h-20 px-6 flex items-center gap-3 bg-white">
+          <div className="w-9 h-9 rounded bg-primary flex items-center justify-center text-white font-bold text-sm shadow-sm">
+            IN
+          </div>
+          <div>
+            <h1 className="text-xs font-bold tracking-wider text-on-surface font-sans uppercase">INVELA CONTROL</h1>
+            <p className="text-[10px] font-semibold tracking-wider text-emerald-700 uppercase flex items-center gap-1 mt-0.5">
+              <ShieldCheck className="w-3 h-3 text-emerald-600" /> Sapras Authority
+            </p>
+          </div>
+        </div>
+
+        <Separator className="bg-surface-container-high" />
+
+        {/* Menu Navigasi */}
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto bg-white">
+          <p className="px-3 mb-3 text-[10px] font-bold tracking-widest text-outline uppercase">
+            Logistics & Infrastructure
+          </p>
+          {saprasMenu.map((item) => {
+            const Icon = item.icon;
+            const isActive = pathname === item.href;
+            
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center gap-3 px-3 py-3 rounded-md text-sm font-medium transition-all duration-200 group ${
+                  isActive 
+                    ? "bg-secondary-container text-primary font-bold shadow-sm" 
+                    : "text-on-surface-variant hover:bg-surface-low hover:text-on-surface"
+                }`}
+              >
+                <Icon className={`w-4 h-4 transition-transform duration-200 group-hover:scale-105 ${isActive ? "text-primary" : "text-outline"}`} />
+                {item.title}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <Separator className="bg-surface-container-high" />
+
+        {/* Footer */}
+        <div className="p-4 bg-surface-bright flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-md bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
+              SP
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-on-surface truncate">Tim Sapras</p>
+              <p className="text-[10px] text-outline font-medium truncate">SMKN 4 Payakumbuh</p>
+            </div>
+          </div>
+          <button className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer">
+            <LogOut className="w-4 h-4" />
+          </button>
+        </div>
+      </aside>
+
+      {/* Wrapper Konten Utama */}
+      <div className="pl-[280px] w-full flex flex-col min-h-screen">
+        <main className="flex-1 p-10 max-w-7xl w-full mx-auto space-y-8">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}

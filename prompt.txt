@@ -1,0 +1,371 @@
+admin/users/page.tsx:
+"use client";
+
+import React, { useState } from 'react';
+import PageAnimateWrapper from '@/components/page-animate-wrapper';
+import { Plus, Trash2, X } from 'lucide-react';
+
+interface UserAccount {
+  id: string;
+  username: string;
+  jurusan: string;
+  role: string;
+}
+
+export default function UsersCRUDPage() {
+  const [isOpenModal, setIsOpenModal] = useState(false);
+  
+  const [users, setUsers] = useState<UserAccount[]>([
+    { id: '1', username: 'fathir_kabeng', jurusan: 'PPLG', role: 'Kabeng' },
+    { id: '2', username: 'ranti_kaprog', jurusan: 'PPLG', role: 'Kaprog' },
+    { id: '3', username: 'sapras_school', jurusan: 'Semua Jurusan', role: 'Sapras' },
+  ]);
+
+  const dummyJurusan = ['PPLG', 'TKJ', 'DKV', 'TITL'];
+
+  const handleDelete = (id: string) => {
+    setUsers(users.filter(u => u.id !== id));
+  };
+
+  return (
+    <PageAnimateWrapper>
+      <div className="space-y-6 relative">
+        <div className="flex justify-between items-center border-b border-surface-container pb-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-on-surface">Memantau Akun Pengguna</h1>
+            <p className="text-sm text-on-surface-variant">Manajemen hak otentikasi login untuk Kepala Bengkel, Ketua Prodi, dan Sarpras.</p>
+          </div>
+          <button 
+            onClick={() => setIsOpenModal(true)}
+            className="px-4 py-2 text-xs font-bold text-white bg-primary hover:bg-primary-container rounded-md flex items-center gap-2 transition-all shadow-sm"
+          >
+            <Plus className="w-4 h-4" /> Tambah Akun Baru
+          </button>
+        </div>
+
+        {/* Table Monitoring */}
+        <div className="bg-white border border-surface-container-high rounded-lg overflow-hidden shadow-sm">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead className="bg-surface-low border-b border-surface-container-high">
+              <tr>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Username</th>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Jurusan Kelolaan</th>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Hak Akses Role</th>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase text-right">Action</th>
+              </tr>
+          </thead>
+            <tbody className="divide-y divide-surface-container">
+              {users.map((user) => (
+                <tr key={user.id} className="hover:bg-surface-low/30 transition-colors">
+                  <td className="p-4 font-semibold text-on-surface">{user.username}</td>
+                  <td className="p-4 text-on-surface-variant">{user.jurusan}</td>
+                  <td className="p-4">
+                    <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                      user.role === 'Kabeng' ? 'bg-primary-light/30 text-primary' :
+                      user.role === 'Kaprog' ? 'bg-secondary-container text-secondary' : 'bg-amber-100 text-amber-800'
+                    }`}>
+                      {user.role}
+                    </span>
+                  </td>
+                  <td className="p-4 text-right">
+                    <button 
+                      onClick={() => handleDelete(user.id)}
+                      className="p-1.5 text-outline hover:text-error hover:bg-error-container/40 rounded transition-colors"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Modal Dialog Form Tambah Akun */}
+        {isOpenModal && (
+          <div className="fixed inset-0 bg-on-surface/30 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white w-full max-w-md border border-surface-container-high rounded-lg shadow-xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex justify-between items-center border-b border-surface-container pb-2">
+                <h3 className="text-sm font-bold text-on-surface">Registrasi Akun Otoritas</h3>
+                <button onClick={() => setIsOpenModal(false)} className="text-outline hover:text-on-surface p-1 rounded">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-outline uppercase">Username</label>
+                  <input type="text" placeholder="Masukkan nama pengguna..." className="w-full px-3 py-2 border border-surface-container-high rounded text-xs focus:outline-none focus:border-primary bg-white text-on-surface"/>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-outline uppercase">Password</label>
+                  <input type="password" placeholder="••••••••" className="w-full px-3 py-2 border border-surface-container-high rounded text-xs focus:outline-none focus:border-primary bg-white text-on-surface"/>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-outline uppercase">Pilih Role Akses</label>
+                  <select className="w-full px-3 py-2 border border-surface-container-high rounded text-xs focus:outline-none focus:border-primary bg-white text-on-surface">
+                    <option value="kabeng">Kepala Bengkel (Kabeng)</option>
+                    <option value="kaprog">Kepala Prodi (Kaprog)</option>
+                    <option value="sapras">Sarana Prasarana (Sapras)</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-outline uppercase">Afiliasi Jurusan</label>
+                  <select className="w-full px-3 py-2 border border-surface-container-high rounded text-xs focus:outline-none focus:border-primary bg-white text-on-surface">
+                    {dummyJurusan.map((jurus, i) => (
+                      <option key={i} value={jurus.toLowerCase()}>{jurus}</option>
+                    ))}
+                    <option value="all">Semua Jurusan (Khusus Sapras)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-surface-container">
+                <button onClick={() => setIsOpenModal(false)} className="px-3 py-1.5 text-xs font-semibold text-secondary hover:bg-surface-low rounded">
+                  Batal
+                </button>
+                <button onClick={() => setIsOpenModal(false)} className="px-4 py-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-container rounded">
+                  Simpan Akun
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </PageAnimateWrapper>
+  );
+}
+
+admin/master/page.tsx:
+import React from 'react';
+import PageAnimateWrapper from '@/components/page-animate-wrapper';
+import { Plus } from 'lucide-react';
+
+export default function MasterInputPage() {
+  const categories = [
+    { label: 'Tambahkan Labor', placeholder: 'Nama Laboratorium (Contoh: Labor Komputer 1)' },
+    { label: 'Tambahkan Jurusan', placeholder: 'Singkatan Jurusan (Contoh: PPLG, DKV, TKJ)' },
+    { label: 'Tambahkan Kelas', placeholder: 'Format Kelas (Contoh: XI PPLG 2)' },
+    { label: 'Tambahkan Category', placeholder: 'Kategori Barang (Contoh: Perangkat Jaringan)' },
+  ];
+
+  return (
+    <PageAnimateWrapper>
+      <div className="space-y-8">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-on-surface">Pusat Registrasi Data Master</h1>
+          <p className="text-sm text-on-surface-variant">Modul pengisian data operasional dasar untuk sinkronisasi inventarisasi labor.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {categories.map((card, idx) => (
+            <div key={idx} className="bg-white border border-surface-container-high rounded-lg p-6 space-y-4 shadow-sm hover:border-outline transition-all">
+              <h2 className="text-sm font-bold text-on-surface tracking-tight">{card.label}</h2>
+              <input type="text" placeholder={card.placeholder} className="w-full px-3 py-2 bg-white border border-surface-container-high rounded text-xs text-on-surface focus:outline-none focus:border-primary transition-all"/>
+              <div className="flex justify-end gap-2 pt-2">
+                <button className="px-3 py-1.5 text-xs font-semibold text-secondary hover:bg-surface-low rounded transition-colors">Cancel</button>
+                <button className="px-4 py-1.5 text-xs font-semibold text-white bg-primary hover:bg-primary-container rounded flex items-center gap-1 transition-colors">
+                  <Plus className="w-3.5 h-3.5" /> Save
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </PageAnimateWrapper>
+  );
+}
+
+admin/labor:
+import React from 'react';
+import { School, ArrowRight } from 'lucide-react';
+
+export default function ReadLaborPage() {
+  const dummyLabor = [
+    { id: 'L01', nama: 'Labor Komputer Pemrograman', lokasi: 'Gedung B Lt. 2', kapasitas: 36, penanggungJawab: 'Ibu Ranti Ermina Sari' },
+    { id: 'L02', nama: 'Labor Game Development', lokasi: 'Gedung B Lt. 2', kapasitas: 32, penanggungJawab: 'Ibu Ade Hudayati' },
+    { id: 'L03', nama: 'Labor Jaringan & Komputasi', lokasi: 'Gedung C Lt. 1', kapasitas: 30, penanggungJawab: 'Bapak Radit' },
+    { id: 'L04', nama: 'Labor Multimedia & DKV', lokasi: 'Gedung D Lt. 2', kapasitas: 36, penanggungJawab: 'Bapak Hafidz' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-on-surface">Data Laboratorium</h1>
+        <p className="text-sm text-on-surface-variant">Daftar seluruh ruang laboratorium yang aktif digunakan untuk kegiatan praktikum.</p>
+      </div>
+
+      <div className="bg-white border border-surface-container-high rounded-lg overflow-hidden">
+        <table className="w-full text-left border-collapse text-sm">
+          <thead className="bg-surface-low border-b border-surface-container-high">
+            <tr>
+              <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Kode</th>
+              <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Nama Labor</th>
+              <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Lokasi</th>
+              <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase text-center">Kapasitas</th>
+              <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Penanggung Jawab</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-surface-container text-on-surface">
+            {dummyLabor.map((labor) => (
+              <tr key={labor.id} className="hover:bg-surface-low/30 transition-colors">
+                <td className="p-4 font-mono text-xs text-primary font-bold">{labor.id}</td>
+                <td className="p-4 font-semibold">{labor.nama}</td>
+                <td className="p-4 text-on-surface-variant">{labor.lokasi}</td>
+                <td className="p-4 text-center tabular-nums font-medium">{labor.kapasitas} Unit</td>
+                <td className="p-4 text-on-surface-variant">{labor.penanggungJawab}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+admin/kelas/page.tsx:
+import React from 'react';
+import PageAnimateWrapper from '@/components/page-animate-wrapper';
+
+export default function ReadKelasPage() {
+  const dummyKelas = [
+    { id: 'K01', namaKelas: 'X PPLG 1', waliKelas: 'Ibu Wisnarti', jumlahSiswa: 34 },
+    { id: 'K02', namaKelas: 'XI PPLG 1', waliKelas: 'Ibu Ade Hudayati', jumlahSiswa: 36 },
+    { id: 'K03', namaKelas: 'XI PPLG 2', waliKelas: 'Ibu Ranti Ermina Sari', jumlahSiswa: 35 },
+    { id: 'K04', namaKelas: 'XII PPLG 1', waliKelas: 'Bapak Vino', jumlahSiswa: 32 },
+  ];
+
+  return (
+    <PageAnimateWrapper>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-on-surface">Data Kelas</h1>
+          <p className="text-sm text-on-surface-variant">Daftar kelas yang terdaftar dalam cakupan hak akses peminjaman alat labor.</p>
+        </div>
+
+        <div className="bg-white border border-surface-container-high rounded-lg overflow-hidden shadow-sm">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead className="bg-surface-low border-b border-surface-container-high">
+              <tr>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">ID</th>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Nama Kelas</th>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Wali Kelas</th>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase text-center">Jumlah Siswa</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-container text-on-surface">
+              {dummyKelas.map((kelas) => (
+                <tr key={kelas.id} className="hover:bg-surface-low/30 transition-colors">
+                  <td className="p-4 font-mono text-xs text-outline">{kelas.id}</td>
+                  <td className="p-4 font-semibold text-primary">{kelas.namaKelas}</td>
+                  <td className="p-4 text-on-surface-variant">{kelas.waliKelas}</td>
+                  <td className="p-4 text-center tabular-nums font-medium">{kelas.jumlahSiswa} Siswa</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </PageAnimateWrapper>
+  );
+}
+
+admin/jurusan/page.tsx:
+import React from 'react';
+import PageAnimateWrapper from '@/components/page-animate-wrapper';
+
+export default function ReadJurusanPage() {
+  const dummyJurusan = [
+    { kode: 'PPLG', nama: 'Pengembangan Perangkat Lunak dan Gim', singkatan: 'Software Engineering', totalLabor: 2 },
+    { kode: 'DKV', nama: 'Desain Komunikasi Visual', singkatan: 'Digital Design', totalLabor: 1 },
+    { kode: 'TKJ', nama: 'Teknik Komputer dan Jaringan', singkatan: 'Computer Network', totalLabor: 2 },
+    { kode: 'TITL', nama: 'Teknik Instalasi Tenaga Listrik', singkatan: 'Electrical Engineering', totalLabor: 1 },
+  ];
+
+  return (
+    <PageAnimateWrapper>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-on-surface">Data Program Keahlian / Jurusan</h1>
+          <p className="text-sm text-on-surface-variant">Klasterisasi jurusan penanggung jawab komparasi aset inventaris.</p>
+        </div>
+
+        <div className="bg-white border border-surface-container-high rounded-lg overflow-hidden shadow-sm">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead className="bg-surface-low border-b border-surface-container-high">
+              <tr>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Kode Jurusan</th>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Nama Program Keahlian</th>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Bidang Studi</th>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase text-center">Alokasi Labor</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-container text-on-surface">
+              {dummyJurusan.map((jurus) => (
+                <tr key={jurus.kode} className="hover:bg-surface-low/30 transition-colors">
+                  <td className="p-4 font-bold text-primary tracking-wide text-xs font-mono">{jurus.kode}</td>
+                  <td className="p-4 font-semibold">{jurus.nama}</td>
+                  <td className="p-4 text-on-surface-variant text-xs">{jurus.singkatan}</td>
+                  <td className="p-4 text-center tabular-nums font-medium">{jurus.totalLabor} Labor</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </PageAnimateWrapper>
+  );
+}
+
+admin/category/page.tsx:
+import React from 'react';
+import PageAnimateWrapper from '@/components/page-animate-wrapper';
+
+export default function ReadCategoryPage() {
+  const dummyCategory = [
+    { id: 'CAT-01', nama: 'Perangkat Keras Utama', kodeGrup: 'HARDWARE', deskripsi: 'Komputer, PC Client, Monitor, dan Server Utama.' },
+    { id: 'CAT-02', nama: 'Komponen Elektronik', kodeGrup: 'COMPONENTS', deskripsi: 'RAM, SSD, Motherboard, Graphic Card cadangan.' },
+    { id: 'CAT-03', nama: 'Networking Equipment', kodeGrup: 'NET-EQ', deskripsi: 'Switch Hub, Router, Access Point, dan Tang Crimping.' },
+    { id: 'CAT-04', nama: 'Alat Pendukung Pengembang', kodeGrup: 'TOOLS', deskripsi: 'Drawing Tablet, VR Headset, Gamepad Emulator Testing.' },
+  ];
+
+  return (
+    <PageAnimateWrapper>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-on-surface">Kategori Spesifikasi Barang</h1>
+          <p className="text-sm text-on-surface-variant">Pengelompokan jenis barang inventaris labor untuk mempermudah pencarian logistik.</p>
+        </div>
+
+        <div className="bg-white border border-surface-container-high rounded-lg overflow-hidden shadow-sm">
+          <table className="w-full text-left border-collapse text-sm">
+            <thead className="bg-surface-low border-b border-surface-container-high">
+              <tr>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">ID Kategori</th>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Nama Kategori</th>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Grup Kode</th>
+                <th className="p-4 text-[11px] font-bold text-outline tracking-wider uppercase">Deskripsi Klaster</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-container text-on-surface">
+              {dummyCategory.map((cat) => (
+                <tr key={cat.id} className="hover:bg-surface-low/30 transition-colors">
+                  <td className="p-4 font-mono text-xs text-outline">{cat.id}</td>
+                  <td className="p-4 font-semibold text-primary">{cat.nama}</td>
+                  <td className="p-4 font-mono text-xs text-on-surface-variant">
+                    <span className="bg-surface-low px-2 py-0.5 rounded border border-surface-container">
+                      {cat.kodeGrup}
+                    </span>
+                  </td>
+                  <td className="p-4 text-on-surface-variant text-xs max-w-xs truncate">{cat.deskripsi}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </PageAnimateWrapper>
+  );
+}
+
+ini juga buat agar ukuran font, font, border, dll juga sama smooth dan bagus nya denga kabeng dan kaprog, pokok nya buat bagus dan professional yak

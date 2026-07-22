@@ -1,0 +1,1 @@
+ini struktur folder saya, saya mau ketika kabeng login, maka sudah terfilter labgsung sesuai jurusan nya yang ada di table akun di admin (jika jurusan kabeng itu rpl, maka masuk ke page kabeng rpl yang hanya menampilkan data barang rpl, peminjaman barang rpl, dll, begitujuga dengan kaprog. dan begitu juga dengan jurusan lain)

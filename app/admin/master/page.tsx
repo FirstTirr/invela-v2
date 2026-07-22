@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { Plus, Layout, Network, GraduationCap, Tags, Server, ArrowRight } from 'lucide-react';
-import { apiKelas, apiJurusan } from '@/lib/api'; // Import apiJurusan di sini
+import { Plus, Network, GraduationCap, Tags, Server, ArrowRight } from 'lucide-react';
+import { apiKelas, apiJurusan, apiKategori, apiLabor } from '@/lib/api';
 
 export default function MasterInputPage() {
   const [activeTab, setActiveTab] = useState<'labor' | 'jurusan' | 'kelas' | 'category'>('labor');
@@ -59,19 +59,20 @@ export default function MasterInputPage() {
 
     try {
       setLoading(true);
-      if (activeTab === 'kelas') {
+      if (activeTab === 'labor') {
+        await apiLabor.create(cleanValue);
+        alert(`Sukses! Ruang Laboratorium [${cleanValue}] berhasil disimpan ke database.`);
+      } else if (activeTab === 'kelas') {
         await apiKelas.create(cleanValue);
         alert(`Sukses! Rombel Kelas [${cleanValue}] berhasil disimpan ke database.`);
-        setInputValue('');
       } else if (activeTab === 'jurusan') {
-        // 🚀 KONEKSIKAN KE ENDPOINT JURUSAN BACKEND
         await apiJurusan.create(cleanValue);
         alert(`Sukses! Kompetensi Jurusan [${cleanValue}] berhasil disimpan ke database.`);
-        setInputValue('');
-      } else {
-        alert(`Data Master [${currentTab.label}] Berhasil Disimpan (Mockup): ${cleanValue}`);
-        setInputValue('');
+      } else if (activeTab === 'category') {
+        await apiKategori.create(cleanValue);
+        alert(`Sukses! Kategori Logistik [${cleanValue}] berhasil disimpan ke database.`);
       }
+      setInputValue('');
     } catch (err: any) {
       alert(`Gagal menyimpan data: ${err.message}`);
     } finally {
@@ -89,7 +90,7 @@ export default function MasterInputPage() {
           <p className="text-base text-on-surface-variant mt-2 font-medium">Modul pengisian data operasional dasar untuk sinkronisasi inventarisasi labor sekolah.</p>
         </div>
 
-        {/* MAIN HUD LAYOUT: Membagi Menu Kiri & Form Kanan */}
+        {/* MAIN HUD LAYOUT */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
           {/* NAVIGASI SEBELAH KIRI */}
@@ -126,13 +127,10 @@ export default function MasterInputPage() {
 
           {/* DYNAMIC FORM WORKSPACE SEBELAH KANAN */}
           <div className="lg:col-span-8 space-y-6">
-            
             <div className="bg-white border border-surface-container-high rounded-2xl shadow-md overflow-hidden transition-all duration-300">
-              
               <div className={`h-2 bg-gradient-to-r ${currentTab.color}`} />
               
               <div className="p-8 space-y-6">
-                
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
                     <div className="inline-block px-3 py-1 rounded-md text-xs font-bold bg-surface-low text-outline border border-surface-container-high uppercase tracking-wider mb-2">
@@ -196,10 +194,9 @@ export default function MasterInputPage() {
 
               </div>
             </div>
-
           </div>
-        </div>
 
+        </div>
       </div>
     </PageAnimateWrapper>
   );

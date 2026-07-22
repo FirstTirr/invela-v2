@@ -1,0 +1,188 @@
+Agar data barang, peminjaman, dll. **otomatis terfilter berdasarkan jurusan pengguna yang sedang login**, kamu **TIDAK PERLU** membuat folder terpisah seperti `kabeng/rpl/items` atau `kabeng/dkv/items`.
+
+Arsitektur folder kamu di App Router Next.js (`app/kabeng/items/page.tsx`, `app/kaprog/items/page.tsx`) **sudah sangat ideal!**
+
+Caranya cukup dengan memanfaatkan **User Session / Context** yang menyimpan `jurusan_id` atau `jurusan` milik user saat login, lalu mengirimkan `jurusan_id` tersebut ke API backend saat melakukan `fetch`.
+
+---
+
+### Strategi Arsitektur (4 Langkah Utama)
+
+```
+[ User Login ] ──> [ Simpan User Session (Role & Jurusan) ] ──> [ Fetch Data API (`?jurusan_id=X`) ]
+
+```
+
+---
+
+### 1. Simpan Data User Saat Login (`app/login/page.tsx`)
+
+Ketika login berhasil, pastikan response dari backend (yang berisi `role`, `jurusan_id`, dan `jurusan`) disimpan ke **LocalStorage** atau **Cookies/Auth Context**.
+
+```typescript
+// Contoh di handler submit login
+const handleLogin = async (e: React.FormEvent) => {
+  e.preventDefault();
+  const response = await apiAuth.login({ username, password });
+  
+  // Simpan data user ke localStorage
+  localStorage.setItem("user", JSON.stringify(response.user));
+  localStorage.setItem("token", response.token);
+
+  // Redirect berdasarkan role
+  if (response.user.role === 'kabeng') {
+    router.push('/kabeng');
+  } else if (response.user.role === 'kaprog') {
+    router.push('/kaprog');
+  }
+};
+
+```
+
+---
+
+### 2. Buat Custom Hook Auth untuk Mengambil Data User
+
+Buat file baru di **`hooks/use-auth.ts`** agar mudah mengambil info user yang sedang aktif di halaman manapun:
+
+```typescript
+// hooks/use-auth.ts
+import { useEffect, useState } from 'react';
+
+export interface AuthUser {
+  id: number;
+  username: string;
+  role: string;
+  jurusan_id?: number | null;
+  jurusan?: string | null;
+}
+
+export function useAuth() {
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem('user');
+    if (storedUser) {
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (e) {
+        console.error('Failed to parse user session', e);
+      }
+    }
+    setLoading(false);
+  }, []);
+
+  return { user, loading };
+}
+
+```
+
+---
+
+### 3. Implementasi Filter di Page (`app/kabeng/items/page.tsx`)
+
+Di halaman Kabeng/Kaprog, ambil info jurusan dari `useAuth()`. Kemudian filter data barang berdasarkan `user.jurusan` (secara client-side atau kirim parameter query `jurusan_id` ke backend Go).
+
+Contoh penerapan di **`app/kabeng/items/page.tsx`**:
+
+```tsx
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/use-auth';
+// ... import komponen & icon lainnya
+
+export default function KabengItemsPage() {
+  const { user, loading: loadingAuth } = useAuth();
+  const [items, setItems] = useState<LaborItem[]>([]);
+  const [loadingItems, setLoadingItems] = useState(true);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const fetchItems = async () => {
+      try {
+        setLoadingItems(true);
+        
+        // 💡 Opsi A: Fetch dari backend dengan Query Parameter Jurusan
+        // const data = await apiItems.getAll({ jurusan_id: user.jurusan_id });
+        
+        // 💡 Opsi B: Fetch semua data, lalu filter di frontend berdasarkan jurusan user
+        const allItems = await apiItems.getAll();
+        
+        // Jika user punya jurusan tertentu (misal: "PPLG"), filter barangnya
+        // Jika Sapras (jurusan = null / 'Semua Jurusan'), tampilkan semua
+        if (user.jurusan) {
+          const filtered = allItems.filter(
+            (item) => item.jurusan.toLowerCase() === user.jurusan?.toLowerCase()
+          );
+          setItems(filtered);
+        } else {
+          setItems(allItems);
+        }
+      } catch (err) {
+        console.error("Gagal mengambil data barang:", err);
+      } finally {
+        setLoadingItems(false);
+      }
+    };
+
+    fetchItems();
+  }, [user]);
+
+  return (
+    <PageAnimateWrapper>
+      <div>
+        {/* Banner Informasi Jurusan Kabeng */}
+        <div className="mb-4 p-4 bg-primary/10 border border-primary/20 rounded-xl flex justify-between items-center">
+          <div>
+            <h2 className="text-lg font-bold text-primary">
+              Aset Laboratorium - Jurusan {user?.jurusan || 'Semua Jurusan'}
+            </h2>
+            <p className="text-sm text-outline">
+              Menampilkan data inventaris khusus untuk wilayah kelolaan {user?.username}
+            </p>
+          </div>
+        </div>
+
+        {/* Tabel Data Barang (Otomatis Sudah Terfilter) */}
+        {/* ... render table items ... */}
+      </div>
+    </PageAnimateWrapper>
+  );
+}
+
+```
+
+---
+
+### 4. Sesuaikan Query Backend Go (Sangat Direkomendasikan)
+
+Agar keamanan data terjamin, filtering paling aman ada di **Backend Go**.
+
+Di backend Go, tambahkan handler agar saat Kabeng/Kaprog melakukan request ke `/api/items`, backend membaca JWT Token / Query Params `jurusan_id`:
+
+```go
+// repositories/item_repository.go
+func (r *ItemRepository) ListByJurusan(items *[]models.Item, jurusanID *uint) error {
+	query := r.db.Preload("Labor").Preload("Kategori").Preload("Jurusan")
+	
+	// Jika jurusanID dikirim/ada, filter query-nya
+	if jurusanID != nil && *jurusanID != 0 {
+		query = query.Where("jurusan_id = ?", *jurusanID)
+	}
+
+	return query.Order("id DESC").Find(items).Error
+}
+
+```
+
+---
+
+### Kesimpulan Ringkas:
+
+1. **Tidak perlu ubah struktur folder.**
+2. Simpan jurusan user di `localStorage` saat login.
+3. Gunakan `useAuth()` di komponen `app/kabeng/items/page.tsx`, `app/kabeng/loans/page.tsx`, dll.
+4. Filter data barang/peminjaman sesuai `user.jurusan` sebelum ditampilkan ke tabel.

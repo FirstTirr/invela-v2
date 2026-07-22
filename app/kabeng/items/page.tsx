@@ -2,42 +2,42 @@
 
 import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { Plus, Edit2, Trash2, X, Search, Loader2, Boxes } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Search, Loader2, Boxes, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { 
   apiJurusan, Jurusan, 
   apiKategori, Kategori, 
   apiLabor, Labor,
-  apiPerangkat, Perangkat 
+  apiPerangkat, Perangkat,
+  apiItemInstance, ItemInstance
 } from '@/lib/api';
 import { incrementKodeAsset } from '@/lib/utils-asset';
+import ExportPdfModal from '@/components/kabeng/ExportPdfModal';
 
-// Tipe untuk tampilan gabungan/grouped di tabel utama
-interface GroupedPerangkat {
+interface DisplayPerangkat {
+  id: number;
   nama_perangkat: string;
-  kode_asset_sample: string; // sampel kode asset (misal: rpl-001)
   kategori_id: number;
   id_jurusan: number;
   id_labor: number;
-  status: string;
   deskripsi: string;
-  jumlah: number;
-  items: Perangkat[]; // daftar seluruh ID unit di grup ini
+  jumlah_stok: number;
+  kode_asset_sample: string;
+  instances: ItemInstance[];
 }
 
 export default function KabengItemsPage() {
   const router = useRouter();
-  const [rawItems, setRawItems] = useState<Perangkat[]>([]);
-  const [groupedItems, setGroupedItems] = useState<GroupedPerangkat[]>([]);
+  const [displayItems, setDisplayItems] = useState<DisplayPerangkat[]>([]);
   const [loadingItems, setLoadingItems] = useState<boolean>(true);
   const [errorItems, setErrorItems] = useState<string | null>(null);
 
   const [isOpenAddModal, setIsOpenAddModal] = useState(false);
   const [isOpenEditModal, setIsOpenEditModal] = useState(false);
+  const [isOpenPdfModal, setIsOpenPdfModal] = useState(false);
   
-  // State untuk item yang sedang diedit
-  const [editingGroup, setEditingGroup] = useState<GroupedPerangkat | null>(null);
+  const [editingPerangkat, setEditingPerangkat] = useState<Perangkat | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,7 +46,6 @@ export default function KabengItemsPage() {
   const [kategoriList, setKategoriList] = useState<Kategori[]>([]);
   const [laborList, setLaborList] = useState<Labor[]>([]);
 
-  // Form State Tambah
   const [addFormData, setAddFormData] = useState({
     nama_perangkat: '',
     kode_asset: '',
@@ -58,50 +57,40 @@ export default function KabengItemsPage() {
     deskripsi: ''
   });
 
-  // Form State Edit
   const [editFormData, setEditFormData] = useState({
     nama_perangkat: '',
     kategori_id: 0,
     id_jurusan: 0,
     id_labor: 0,
-    status: 'aktif',
     deskripsi: ''
   });
-
-  // Fungsi mengelompokkan data berdasarkan Nama Perangkat
-  const processGroupedItems = (data: Perangkat[]) => {
-    const groups: { [key: string]: GroupedPerangkat } = {};
-
-    data.forEach(item => {
-      const key = item.nama_perangkat.trim().toLowerCase();
-      if (!groups[key]) {
-        groups[key] = {
-          nama_perangkat: item.nama_perangkat,
-          kode_asset_sample: item.kode_asset,
-          kategori_id: item.kategori_id,
-          id_jurusan: item.id_jurusan,
-          id_labor: item.id_labor,
-          status: item.status,
-          deskripsi: item.deskripsi,
-          jumlah: 1,
-          items: [item]
-        };
-      } else {
-        groups[key].jumlah += 1;
-        groups[key].items.push(item);
-      }
-    });
-
-    return Object.values(groups);
-  };
 
   const fetchItems = async () => {
     try {
       setLoadingItems(true);
       setErrorItems(null);
-      const data = await apiPerangkat.getAll();
-      setRawItems(data);
-      setGroupedItems(processGroupedItems(data));
+
+      const [perangkatData, instanceData] = await Promise.all([
+        apiPerangkat.getAll(),
+        apiItemInstance.getAll()
+      ]);
+
+      const formatted: DisplayPerangkat[] = perangkatData.map(p => {
+        const matchingInstances = instanceData.filter(inst => Number(inst.id_perangkat) === p.id);
+        return {
+          id: p.id,
+          nama_perangkat: p.nama_perangkat,
+          kategori_id: p.kategori_id,
+          id_jurusan: p.id_jurusan,
+          id_labor: p.id_labor,
+          deskripsi: p.deskripsi,
+          jumlah_stok: matchingInstances.length,
+          kode_asset_sample: matchingInstances.length > 0 ? matchingInstances[0].kode_asset : '-',
+          instances: matchingInstances
+        };
+      });
+
+      setDisplayItems(formatted);
     } catch (err: any) {
       setErrorItems(err.message || 'Gagal memuat data perangkat');
     } finally {
@@ -144,37 +133,38 @@ export default function KabengItemsPage() {
   const getLaborName = (id: number) => laborList.find(l => l.id === id)?.labor || `ID: ${id}`;
   const getKategoriName = (id: number) => kategoriList.find(k => k.id === id)?.kategori || `ID: ${id}`;
 
-  // Filter Grouped Items Realtime
-  const filteredGroups = groupedItems.filter((group) => {
+  const filteredItems = displayItems.filter((item) => {
     const q = searchQuery.toLowerCase().trim();
     return (
-      group.nama_perangkat.toLowerCase().includes(q) ||
-      group.kode_asset_sample.toLowerCase().includes(q)
+      item.nama_perangkat.toLowerCase().includes(q) ||
+      item.kode_asset_sample.toLowerCase().includes(q)
     );
   });
 
-  // Handler Buka Modal Edit
-  const handleEditClick = (group: GroupedPerangkat) => {
-    setEditingGroup(group);
+  const handleEditClick = (item: DisplayPerangkat) => {
+    setEditingPerangkat(item);
     setEditFormData({
-      nama_perangkat: group.nama_perangkat,
-      kategori_id: group.kategori_id,
-      id_jurusan: group.id_jurusan,
-      id_labor: group.id_labor,
-      status: group.status,
-      deskripsi: group.deskripsi || ''
+      nama_perangkat: item.nama_perangkat,
+      kategori_id: item.kategori_id,
+      id_jurusan: item.id_jurusan,
+      id_labor: item.id_labor,
+      deskripsi: item.deskripsi || ''
     });
     setIsOpenEditModal(true);
   };
 
-  // Handler Hapus Seluruh Group Perangkat
-  const handleDeleteGroup = async (group: GroupedPerangkat) => {
-    if (!confirm(`Yakin ingin menghapus seluruh ${group.jumlah} unit [${group.nama_perangkat}]?`)) return;
+  // Validasi Penghapusan: Jika item instance masih ada, tolak dan beri peringatan
+  const handleDeletePerangkat = async (item: DisplayPerangkat) => {
+    if (item.jumlah_stok > 0) {
+      alert(`Perangkat [${item.nama_perangkat}] masih memiliki ${item.jumlah_stok} unit instance!\n\nHapus terlebih dahulu item instance melalui tombol "Kelola Unit" sebelum menghapus perangkat ini.`);
+      return;
+    }
+
+    if (!confirm(`Yakin ingin menghapus master perangkat [${item.nama_perangkat}] ini?`)) return;
 
     try {
       setIsSubmitting(true);
-      // Hapus seluruh instance yang berada di grup ini
-      await Promise.all(group.items.map(item => apiPerangkat.delete(item.id)));
+      await apiPerangkat.delete(item.id);
       await fetchItems();
       alert('Perangkat berhasil dihapus!');
     } catch (err: any) {
@@ -184,30 +174,34 @@ export default function KabengItemsPage() {
     }
   };
 
-  // Submit Handler Tambah Barang
   const handleAddItemSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       setIsSubmitting(true);
+
+      const newPerangkat = await apiPerangkat.create({
+        nama_perangkat: addFormData.nama_perangkat,
+        kategori_id: Number(addFormData.kategori_id),
+        id_jurusan: Number(addFormData.id_jurusan),
+        id_labor: Number(addFormData.id_labor),
+        deskripsi: addFormData.deskripsi
+      });
+
       const totalUnits = Math.max(1, addFormData.jumlah_unit);
-      const requests = [];
+      const instanceRequests = [];
 
       for (let i = 0; i < totalUnits; i++) {
         const generatedKodeAsset = incrementKodeAsset(addFormData.kode_asset, i);
-        requests.push(
-          apiPerangkat.create({
-            nama_perangkat: addFormData.nama_perangkat,
+        instanceRequests.push(
+          apiItemInstance.create({
+            id_perangkat: newPerangkat.id,
             kode_asset: generatedKodeAsset,
-            kategori_id: Number(addFormData.kategori_id),
-            id_jurusan: Number(addFormData.id_jurusan),
-            id_labor: Number(addFormData.id_labor),
-            status: addFormData.status,
-            deskripsi: addFormData.deskripsi
+            status: addFormData.status
           })
         );
       }
 
-      await Promise.all(requests);
+      await Promise.all(instanceRequests);
       await fetchItems();
       setIsOpenAddModal(false);
       
@@ -221,7 +215,7 @@ export default function KabengItemsPage() {
         status: 'aktif',
         deskripsi: ''
       });
-      alert(`Berhasil menambahkan ${totalUnits} unit perangkat!`);
+      alert(`Berhasil menambahkan perangkat dan ${totalUnits} unit fisik!`);
     } catch (err: any) {
       alert(`Gagal menyimpan: ${err.message}`);
     } finally {
@@ -229,30 +223,24 @@ export default function KabengItemsPage() {
     }
   };
 
-  // Submit Handler Edit Barang (Update Semua Unit di Group Tersebut)
   const handleEditItemSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingGroup) return;
+    if (!editingPerangkat) return;
 
     try {
       setIsSubmitting(true);
-      // Perbarui atribut seluruh unit dalam grup ini
-      const requests = editingGroup.items.map(item =>
-        apiPerangkat.update(item.id, {
-          nama_perangkat: editFormData.nama_perangkat,
-          kategori_id: Number(editFormData.kategori_id),
-          id_jurusan: Number(editFormData.id_jurusan),
-          id_labor: Number(editFormData.id_labor),
-          status: editFormData.status,
-          deskripsi: editFormData.deskripsi
-        })
-      );
+      await apiPerangkat.update(editingPerangkat.id, {
+        nama_perangkat: editFormData.nama_perangkat,
+        kategori_id: Number(editFormData.kategori_id),
+        id_jurusan: Number(editFormData.id_jurusan),
+        id_labor: Number(editFormData.id_labor),
+        deskripsi: editFormData.deskripsi
+      });
 
-      await Promise.all(requests);
       await fetchItems();
       setIsOpenEditModal(false);
-      setEditingGroup(null);
-      alert('Data perangkat berhasil diperbarui!');
+      setEditingPerangkat(null);
+      alert('Data master perangkat berhasil diperbarui!');
     } catch (err: any) {
       alert(`Gagal memperbarui: ${err.message}`);
     } finally {
@@ -269,15 +257,23 @@ export default function KabengItemsPage() {
             <h1 className="text-3xl font-bold tracking-tight text-on-surface">Manajemen & Registrasi Perangkat</h1>
             <p className="text-base text-on-surface-variant mt-1 font-medium">Input data aset perangkat baru dan kelola unit laboratorium.</p>
           </div>
-          <button 
-            onClick={() => setIsOpenAddModal(true)}
-            className="px-5 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer w-full sm:w-auto shrink-0"
-          >
-            <Plus className="w-5 h-5" /> Input Perangkat Baru
-          </button>
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setIsOpenPdfModal(true)}
+              className="px-4 py-2.5 text-sm font-bold text-secondary bg-surface-low hover:bg-surface-container border border-surface-container-high rounded-lg flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer"
+            >
+              <FileText className="w-4 h-4 text-primary" /> Export PDF
+            </button>
+            <button 
+              onClick={() => setIsOpenAddModal(true)}
+              className="px-5 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+            >
+              <Plus className="w-5 h-5" /> Input Perangkat Baru
+            </button>
+          </div>
         </div>
 
-        {/* 🔍 Search Bar */}
+        {/* Search Bar */}
         <div className="flex items-center gap-3">
           <div className="relative w-full sm:w-80">
             <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-outline pointer-events-none" />
@@ -286,7 +282,7 @@ export default function KabengItemsPage() {
               placeholder="Cari nama perangkat / kode asset..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-10 py-2.5 bg-white border border-surface-container-high rounded-xl text-base text-on-surface placeholder:text-outline/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all font-medium shadow-xs"
+              className="w-full pl-10 pr-10 py-2.5 bg-white border border-surface-container-high rounded-xl text-base text-on-surface placeholder:text-outline/60 focus:outline-none focus:border-primary transition-all font-medium shadow-xs"
             />
             {searchQuery && (
               <button 
@@ -306,34 +302,33 @@ export default function KabengItemsPage() {
               <thead className="bg-surface-low border-b border-surface-container-high">
                 <tr>
                   <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase">Nama Perangkat</th>
-                  <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase">Klaster Labor</th>
+                  <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase">Labor</th>
                   <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase">Kategori</th>
-                  <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase text-center">Jumlah Stok</th>
-                  <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase text-center">Status</th>
+                  <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase text-center">Jumlah Stok Unit</th>
                   <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="text-on-surface font-semibold relative">
                 {loadingItems ? (
                   <tr>
-                    <td colSpan={6} className="p-10 text-center text-outline font-medium">
+                    <td colSpan={5} className="p-10 text-center text-outline font-medium">
                       <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
                       Memuat data perangkat...
                     </td>
                   </tr>
                 ) : errorItems ? (
                   <tr>
-                    <td colSpan={6} className="p-10 text-center text-error font-bold">{errorItems}</td>
+                    <td colSpan={5} className="p-10 text-center text-error font-bold">{errorItems}</td>
                   </tr>
-                ) : filteredGroups.length === 0 ? (
+                ) : filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="p-10 text-center text-outline font-medium">Data perangkat tidak ditemukan.</td>
+                    <td colSpan={5} className="p-10 text-center text-outline font-medium">Data perangkat tidak ditemukan.</td>
                   </tr>
                 ) : (
                   <AnimatePresence initial={false}>
-                    {filteredGroups.map((group, idx) => (
+                    {filteredItems.map((item) => (
                       <motion.tr 
-                        key={idx}
+                        key={item.id}
                         layout
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -341,61 +336,47 @@ export default function KabengItemsPage() {
                         className="hover:bg-surface-low/30 border-b border-surface-container overflow-hidden"
                       >
                         <td className="p-5 whitespace-nowrap">
-                          <span className="block text-base font-bold text-primary">{group.nama_perangkat}</span>
-                          <span className="block text-xs font-mono text-outline mt-0.5 font-bold">Base Asset: {group.kode_asset_sample}</span>
-                          {group.deskripsi && (
+                          <span className="block text-base font-bold text-primary">{item.nama_perangkat}</span>
+                          <span className="block text-xs font-mono text-outline mt-0.5 font-bold">Sample Kode Asset: {item.kode_asset_sample}</span>
+                          {item.deskripsi && (
                             <span className="block text-xs text-on-surface-variant italic mt-1 font-medium bg-surface-low px-2 py-0.5 rounded border border-surface-container-high w-fit">
-                              Deskripsi: {group.deskripsi}
+                              Deskripsi: {item.deskripsi}
                             </span>
                           )}
                         </td>
                         <td className="p-5 whitespace-nowrap">
-                          <span className="block text-base font-bold text-on-surface">{getLaborName(group.id_labor)}</span>
-                          <span className="block text-sm text-outline mt-0.5 uppercase">Jurusan: {getJurusanName(group.id_jurusan)}</span>
+                          <span className="block text-base font-bold text-on-surface">{getLaborName(item.id_labor)}</span>
+                          <span className="block text-sm text-outline mt-0.5 uppercase">Jurusan: {getJurusanName(item.id_jurusan)}</span>
                         </td>
                         <td className="p-5 text-base font-bold text-on-surface-variant whitespace-nowrap">
-                          {getKategoriName(group.kategori_id)}
+                          {getKategoriName(item.kategori_id)}
                         </td>
-                        {/* 🔴 KOLOM JUMLAH BARANG / STOK 🔴 */}
                         <td className="p-5 text-center whitespace-nowrap">
                           <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-extrabold bg-primary/10 text-primary border border-primary/20">
-                            {group.jumlah} Unit
-                          </span>
-                        </td>
-                        <td className="p-5 text-center whitespace-nowrap">
-                          <span className={`inline-block px-3 py-1 rounded-md text-sm font-bold border uppercase ${
-                            group.status === 'aktif' ? 'bg-green-100 text-green-900 border-green-300' :
-                            group.status === 'perbaikan' ? 'bg-amber-100 text-amber-900 border-amber-300' :
-                            group.status === 'rusak' ? 'bg-red-100 text-red-900 border-red-300' :
-                            'bg-gray-100 text-gray-800 border-gray-300'
-                          }`}>
-                            {group.status}
+                            {item.jumlah_stok} Unit
                           </span>
                         </td>
                         <td className="p-5 text-right space-x-2 whitespace-nowrap">
-                          {/* Tombol Ke Page Unit Instance */}
                           <button 
-                            onClick={() => router.push(`/kabeng/items/${group.items[0].id}`)}
+                            onClick={() => router.push(`/kabeng/items/${item.id}`)}
                             className="p-2.5 border border-primary/20 text-primary hover:bg-primary/10 rounded-lg transition-all cursor-pointer inline-flex items-center gap-1 font-bold text-xs"
-                            title="Lihat Unit Instance"
+                            title="Kelola Unit Instance"
                           >
-                            <Boxes className="w-4 h-4" /> Unit
+                            <Boxes className="w-4 h-4" /> Kelola Unit
                           </button>
                           
-                          {/* 🔴 TOMBOL EDIT AKTIF 🔴 */}
                           <button 
                             type="button"
-                            onClick={() => handleEditClick(group)}
+                            onClick={() => handleEditClick(item)}
                             className="p-2.5 border border-surface-container text-outline hover:text-primary hover:bg-secondary-container rounded-lg transition-all cursor-pointer inline-flex items-center"
-                            title="Edit Perangkat"
+                            title="Edit Master Perangkat"
                           >
                             <Edit2 className="w-4 h-4" />
                           </button>
 
-                          {/* Tombol Hapus */}
                           <button 
                             type="button"
-                            onClick={() => handleDeleteGroup(group)}
+                            onClick={() => handleDeletePerangkat(item)}
                             className="p-2.5 border border-surface-container text-outline hover:text-error hover:bg-error-container rounded-lg transition-all cursor-pointer inline-flex items-center"
                             title="Hapus Perangkat"
                           >
@@ -414,14 +395,14 @@ export default function KabengItemsPage() {
         {/* MODAL INPUT PERANGKAT BARU */}
         <AnimatePresence>
           {isOpenAddModal && (
-            <div className="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
-                className="bg-white w-full max-w-xl border border-surface-container-high rounded-xl shadow-xl p-6 space-y-4"
+                className="bg-white w-full max-w-xl border border-surface-container-high rounded-xl shadow-xl p-6 space-y-4 my-auto max-h-[90vh] overflow-y-auto"
               >
-                <div className="flex justify-between items-center border-b border-surface-container pb-2">
+                <div className="flex justify-between items-center border-b border-surface-container pb-2 sticky top-0 bg-white z-10">
                   <h3 className="text-lg font-bold text-on-surface">Input Data Perangkat Baru</h3>
                   <button onClick={() => setIsOpenAddModal(false)} className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
                 </div>
@@ -454,12 +435,12 @@ export default function KabengItemsPage() {
 
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-outline uppercase tracking-wider">
-                      Kode Asset Awal
+                      Kode Asset Awal (Auto-Increment)
                     </label>
                     <input 
                       type="text" 
                       required
-                      placeholder="Contoh: rpl-001" 
+                      placeholder="Contoh: RPL-001" 
                       value={addFormData.kode_asset}
                       onChange={(e) => setAddFormData({...addFormData, kode_asset: e.target.value})}
                       className="w-full px-4 py-2.5 border border-surface-container-high rounded-lg text-base font-mono font-medium"
@@ -511,7 +492,7 @@ export default function KabengItemsPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-outline uppercase tracking-wider">Status Perangkat</label>
+                    <label className="text-xs font-bold text-outline uppercase tracking-wider">Status Awal Unit</label>
                     <select 
                       value={addFormData.status}
                       onChange={(e) => setAddFormData({...addFormData, status: e.target.value})}
@@ -535,7 +516,7 @@ export default function KabengItemsPage() {
                     />
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-3 border-t border-surface-container">
+                  <div className="flex justify-end gap-3 pt-3 border-t border-surface-container sticky bottom-0 bg-white z-10 pb-1">
                     <button 
                       type="button"
                       disabled={isSubmitting}
@@ -558,18 +539,18 @@ export default function KabengItemsPage() {
           )}
         </AnimatePresence>
 
-        {/* 🔴 MODAL EDIT PERANGKAT SANGAT PRESISI 🔴 */}
+        {/* MODAL EDIT PERANGKAT */}
         <AnimatePresence>
-          {isOpenEditModal && editingGroup && (
-            <div className="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          {isOpenEditModal && editingPerangkat && (
+            <div className="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
               <motion.div 
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
-                className="bg-white w-full max-w-xl border border-surface-container-high rounded-xl shadow-xl p-6 space-y-4"
+                className="bg-white w-full max-w-xl border border-surface-container-high rounded-xl shadow-xl p-6 space-y-4 my-auto max-h-[90vh] overflow-y-auto"
               >
-                <div className="flex justify-between items-center border-b border-surface-container pb-2">
-                  <h3 className="text-lg font-bold text-on-surface">Edit Perangkat ({editingGroup.jumlah} Unit)</h3>
+                <div className="flex justify-between items-center border-b border-surface-container pb-2 sticky top-0 bg-white z-10">
+                  <h3 className="text-lg font-bold text-on-surface">Edit Data Master Perangkat</h3>
                   <button onClick={() => setIsOpenEditModal(false)} className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
                 </div>
                 
@@ -627,20 +608,6 @@ export default function KabengItemsPage() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-outline uppercase tracking-wider">Status Perangkat</label>
-                    <select 
-                      value={editFormData.status}
-                      onChange={(e) => setEditFormData({...editFormData, status: e.target.value})}
-                      className="w-full px-4 py-2.5 border border-surface-container-high rounded-lg text-base font-semibold"
-                    >
-                      <option value="aktif">aktif</option>
-                      <option value="perbaikan">perbaikan</option>
-                      <option value="rusak">rusak</option>
-                      <option value="nonaktif">nonaktif</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
                     <label className="text-xs font-bold text-outline uppercase tracking-wider">Deskripsi / Catatan</label>
                     <textarea 
                       rows={2}
@@ -650,7 +617,7 @@ export default function KabengItemsPage() {
                     />
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-3 border-t border-surface-container">
+                  <div className="flex justify-end gap-3 pt-3 border-t border-surface-container sticky bottom-0 bg-white z-10 pb-1">
                     <button 
                       type="button"
                       disabled={isSubmitting}
@@ -672,7 +639,15 @@ export default function KabengItemsPage() {
             </div>
           )}
         </AnimatePresence>
+
+        {/* MODAL EXPORT PDF */}
+        <ExportPdfModal 
+          isOpen={isOpenPdfModal}
+          onClose={() => setIsOpenPdfModal(false)}
+          laborList={laborList}
+          displayItems={displayItems}
+        />
       </div>
     </PageAnimateWrapper>
   );
-}1
+}

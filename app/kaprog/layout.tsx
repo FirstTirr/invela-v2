@@ -1,12 +1,18 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Package, ClipboardList, AlertTriangle, Eye, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, ClipboardList, AlertTriangle, Eye, LogOut, Menu, X } from 'lucide-react';
 
 export default function KaprogLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Otomatis menutup sidebar saat berpindah halaman di mobile
+  useEffect(() => {
+    setIsOpen(false);
+  }, [pathname]);
 
   const kaprogMenu = [
     { title: 'Dashboard Overview', href: '/kaprog', icon: LayoutDashboard },
@@ -16,22 +22,60 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
   ];
 
   return (
-    <div className="min-h-screen bg-background text-on-surface antialiased flex selection:bg-secondary-container">
+    <div className="min-h-screen bg-background text-on-surface antialiased flex flex-col md:flex-row selection:bg-secondary-container">
       
-      {/* Fixed Sidebar */}
-      <aside className="fixed inset-y-0 left-0 w-[280px] bg-white border-r border-surface-container-high flex flex-col z-20">
-        
-        {/* Brand Header */}
-        <div className="h-20 px-6 border-b border-surface-container flex items-center gap-3 bg-white">
-          <div className="w-9 h-9 rounded bg-primary flex items-center justify-center text-white font-bold text-sm shadow-sm">
+      {/* Mobile Top Navigation Header */}
+      <header className="md:hidden h-16 bg-white border-b border-surface-container-high px-4 flex items-center justify-between sticky top-0 z-30">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-white font-bold text-xs shadow-sm">
             IN
           </div>
           <div>
             <h1 className="text-xs font-bold tracking-wider text-on-surface font-sans uppercase">INVELA CONTROL</h1>
-            <p className="text-[10px] font-semibold tracking-wider text-secondary uppercase flex items-center gap-1 mt-0.5">
-              <Eye className="w-3 h-3 text-primary" /> Prodi Monitor
-            </p>
           </div>
+        </div>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="p-2 text-on-surface-variant hover:bg-surface-low rounded-md transition-colors"
+          aria-label="Toggle Menu"
+        >
+          {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </header>
+
+      {/* Backdrop / Overlay untuk Mobile */}
+      {isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
+      {/* Sidebar Navigation */}
+      <aside className={`fixed inset-y-0 left-0 w-[280px] bg-white border-r border-surface-container-high flex flex-col z-40 transition-transform duration-300 ease-in-out md:translate-x-0 ${
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      }`}>
+        
+        {/* Brand Header */}
+        <div className="h-20 px-6 border-b border-surface-container flex items-center justify-between bg-white">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded bg-primary flex items-center justify-center text-white font-bold text-sm shadow-sm">
+              IN
+            </div>
+            <div>
+              <h1 className="text-xs font-bold tracking-wider text-on-surface font-sans uppercase">INVELA CONTROL</h1>
+              <p className="text-[10px] font-semibold tracking-wider text-secondary uppercase flex items-center gap-1 mt-0.5">
+                <Eye className="w-3 h-3 text-primary" /> Prodi Monitor
+              </p>
+            </div>
+          </div>
+          {/* Tombol tutup tambahan di dalam sidebar saat layar mobile */}
+          <button 
+            onClick={() => setIsOpen(false)} 
+            className="md:hidden p-1 text-outline hover:text-on-surface rounded"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Navigation Section */}
@@ -78,8 +122,8 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
       </aside>
 
       {/* Main Content Wrapper */}
-      <div className="pl-[280px] w-full flex flex-col min-h-screen">
-        <main className="flex-1 p-10 max-w-7xl w-full mx-auto space-y-8">
+      <div className="flex-1 w-full flex flex-col min-h-screen md:pl-[280px]">
+        <main className="flex-1 p-4 sm:p-6 md:p-10 max-w-7xl w-full mx-auto space-y-8">
           {children}
         </main>
       </div>

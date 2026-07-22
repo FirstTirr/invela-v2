@@ -1,13 +1,12 @@
+// lib/api/perangkat.ts
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
 
 export interface Perangkat {
   id: number;
   nama_perangkat: string;
-  kode_asset: string;
   kategori_id: number;
   id_jurusan: number;
   id_labor: number;
-  status: 'aktif' | 'rusak' | 'perbaikan' | 'nonaktif';
   deskripsi: string;
   created_at?: string;
   updated_at?: string;
@@ -15,25 +14,22 @@ export interface Perangkat {
 
 export interface CreatePerangkatInput {
   nama_perangkat: string;
-  kode_asset: string;
   kategori_id: number;
   id_jurusan: number;
   id_labor: number;
-  status: string;
   deskripsi?: string;
 }
 
 export interface UpdatePerangkatInput {
   nama_perangkat?: string;
-  kode_asset?: string;
   kategori_id?: number;
   id_jurusan?: number;
   id_labor?: number;
-  status?: string;
   deskripsi?: string;
 }
 
 export const apiPerangkat = {
+  // Method CRUD tetap sama seperti file kamu
   getAll: async (): Promise<Perangkat[]> => {
     const res = await fetch(`${BASE_URL}/api/perangkat`, { cache: 'no-store' });
     if (!res.ok) throw new Error('Gagal mengambil data perangkat');

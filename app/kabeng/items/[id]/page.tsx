@@ -5,7 +5,7 @@ import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { ArrowLeft, Plus, Loader2, Trash2 } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
-import { apiPerangkat, Perangkat } from '@/lib/api';
+import { apiPerangkat, apiItemInstance, Perangkat, ItemInstance } from '@/lib/api';
 import { incrementKodeAsset } from '@/lib/utils-asset';
 
 export default function ItemInstancePage() {
@@ -14,24 +14,28 @@ export default function ItemInstancePage() {
   const itemId = Number(params.id);
 
   const [basePerangkat, setBasePerangkat] = useState<Perangkat | null>(null);
-  const [unitInstances, setUnitInstances] = useState<Perangkat[]>([]);
+  const [unitInstances, setUnitInstances] = useState<ItemInstance[]>([]);
   const [loading, setLoading] = useState(true);
   const [addingUnit, setAddingUnit] = useState(false);
 
   const fetchInstances = async () => {
     try {
       setLoading(true);
-      // Fetch detail perangkat acuan awal
-      const target = await apiPerangkat.getById(itemId);
+      
+      // Fetch detail induk Perangkat & seluruh item-instance secara bersamaan
+      const [target, allInstances] = await Promise.all([
+        apiPerangkat.getById(itemId),
+        apiItemInstance.getAll()
+      ]);
+
       setBasePerangkat(target);
 
-      // Ambil seluruh perangkat untuk memfilter unit sejenis
-      const allItems = await apiPerangkat.getAll();
-      const group = allItems.filter(
-        item => item.nama_perangkat.toLowerCase() === target.nama_perangkat.toLowerCase()
+      // Filter unit yang id_perangkat nya sesuai
+      const filtered = allInstances.filter(
+        item => Number(item.id_perangkat) === itemId
       );
       
-      setUnitInstances(group);
+      setUnitInstances(filtered);
     } catch (err) {
       console.error("Gagal mengambil data unit:", err);
     } finally {
@@ -43,26 +47,30 @@ export default function ItemInstancePage() {
     if (itemId) fetchInstances();
   }, [itemId]);
 
-  // Handler Tombol "+" (Otomatis Increment Kode Asset & Tambah Ke Backend)
   const handleAddQuickUnit = async () => {
-    if (!basePerangkat || unitInstances.length === 0) return;
+    if (!basePerangkat) return;
 
     try {
       setAddingUnit(true);
       
-      // Ambil kode asset terakhir dari list unit yang ada
-      const lastUnit = unitInstances[unitInstances.length - 1];
-      const nextKodeAsset = incrementKodeAsset(lastUnit.kode_asset, 1);
+      let nextKodeAsset = 'AST-001';
 
-      // Kirim request buat unit baru ke Backend Go
-      await apiPerangkat.create({
-        nama_perangkat: basePerangkat.nama_perangkat,
+      if (unitInstances.length > 0) {
+        // Cari kode_asset dengan angka terbesar
+        const highestCode = unitInstances.reduce((maxCode, current) => {
+          const currentNum = parseInt(current.kode_asset.replace(/\D/g, ''), 10) || 0;
+          const maxNum = parseInt(maxCode.replace(/\D/g, ''), 10) || 0;
+          
+          return currentNum > maxNum ? current.kode_asset : maxCode;
+        }, unitInstances[0].kode_asset);
+
+        nextKodeAsset = incrementKodeAsset(highestCode, 1);
+      }
+
+      await apiItemInstance.create({
+        id_perangkat: itemId,
         kode_asset: nextKodeAsset,
-        kategori_id: basePerangkat.kategori_id,
-        id_jurusan: basePerangkat.id_jurusan,
-        id_labor: basePerangkat.id_labor,
-        status: 'aktif',
-        deskripsi: basePerangkat.deskripsi
+        status: 'aktif'
       });
 
       await fetchInstances();
@@ -77,7 +85,7 @@ export default function ItemInstancePage() {
   const handleDeleteUnit = async (id: number, kode: string) => {
     if (!confirm(`Hapus unit ${kode}?`)) return;
     try {
-      await apiPerangkat.delete(id);
+      await apiItemInstance.delete(id);
       await fetchInstances();
     } catch (err: any) {
       alert(`Gagal menghapus unit: ${err.message}`);
@@ -92,13 +100,13 @@ export default function ItemInstancePage() {
           <div className="flex items-center gap-3">
             <button 
               onClick={() => router.push('/kabeng/items')}
-              className="p-2 rounded-lg border border-surface-container hover:bg-surface-low transition-colors"
+              className="p-2 rounded-lg border border-surface-container hover:bg-surface-low transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-5 h-5 text-on-surface" />
             </button>
             <div>
               <h1 className="text-2xl font-bold text-on-surface">
-                {loading ? 'Memuat Details...' : basePerangkat?.nama_perangkat}
+                {loading ? 'Memuat Details...' : (basePerangkat?.nama_perangkat || unitInstances[0]?.perangkat?.nama_perangkat)}
               </h1>
               <p className="text-sm text-outline">
                 Daftar unit instance & penomoran Kode Asset aktif ({unitInstances.length} Unit)
@@ -106,7 +114,6 @@ export default function ItemInstancePage() {
             </div>
           </div>
 
-          {/* 🔴 TOMBOL + TAMBAH UNIT DENGAN AUTO-INCREMENT 🔴 */}
           <button 
             disabled={addingUnit || loading}
             onClick={handleAddQuickUnit}
@@ -136,6 +143,12 @@ export default function ItemInstancePage() {
                     Memuat list unit...
                   </td>
                 </tr>
+              ) : unitInstances.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="p-8 text-center text-outline">
+                    Belum ada unit fisik registered untuk perangkat ini. Klik &quot;Tambah Unit Baru&quot; di atas.
+                  </td>
+                </tr>
               ) : unitInstances.map((unit, index) => (
                 <tr key={unit.id} className="hover:bg-surface-low/30">
                   <td className="p-4 text-sm font-mono text-outline">{index + 1}</td>
@@ -145,7 +158,9 @@ export default function ItemInstancePage() {
                   <td className="p-4 text-center">
                     <span className={`inline-block px-3 py-1 rounded-md text-xs font-bold uppercase border ${
                       unit.status === 'aktif' ? 'bg-green-100 text-green-900 border-green-300' :
-                      unit.status === 'perbaikan' ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-red-100 text-red-900 border-red-300'
+                      unit.status === 'perbaikan' ? 'bg-amber-100 text-amber-900 border-amber-300' : 
+                      unit.status === 'rusak' ? 'bg-red-100 text-red-900 border-red-300' :
+                      'bg-gray-100 text-gray-800 border-gray-300'
                     }`}>
                       {unit.status}
                     </span>
@@ -153,7 +168,7 @@ export default function ItemInstancePage() {
                   <td className="p-4 text-right">
                     <button 
                       onClick={() => handleDeleteUnit(unit.id, unit.kode_asset)}
-                      className="p-2 text-outline hover:text-error hover:bg-error-container rounded-lg transition-colors"
+                      className="p-2 text-outline hover:text-error hover:bg-error-container rounded-lg transition-colors cursor-pointer"
                       title="Hapus Unit Ini"
                     >
                       <Trash2 className="w-4 h-4" />

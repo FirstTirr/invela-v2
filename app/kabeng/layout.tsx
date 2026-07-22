@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, PackagePlus, ClipboardList, 
-  AlertTriangle, User, LogOut, Menu, X 
+  AlertTriangle, User, LogOut, Menu, X, MonitorCheck 
 } from 'lucide-react';
 
 export default function KabengLayout({ children }: { children: React.ReactNode }) {
@@ -15,6 +15,7 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
   const kabengMenu = [
     { title: 'Dashboard Overview', href: '/kabeng', icon: LayoutDashboard },
     { title: 'Kelola & Perbaikan Barang', href: '/kabeng/items', icon: PackagePlus },
+    { title: 'Penggunaan Labor', href: '/kabeng/penggunaan', icon: MonitorCheck }, // 👈 Tambahan Menu Baru
     { title: 'Peminjaman Barang', href: '/kabeng/loans', icon: ClipboardList },
     { title: 'Laporan Kerusakan', href: '/kabeng/damages', icon: AlertTriangle },
   ];

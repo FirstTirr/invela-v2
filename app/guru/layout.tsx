@@ -14,13 +14,30 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
     { title: 'Lapor Kerusakan Barang', href: '/guru/damages', icon: AlertTriangle },
   ];
 
+  // FUNGSI LOGOUT LENGKAP
+  const handleLogout = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+
+    if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
+
+    localStorage.clear();
+    sessionStorage.clear();
+
+    const cookies = document.cookie.split(";");
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i];
+      const eqPos = cookie.indexOf("=");
+      const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+    }
+
+    window.location.href = '/login';
+  };
+
   return (
     <div className="min-h-screen bg-background text-on-surface antialiased flex selection:bg-secondary-container">
-      
-      {/* Sidebar Navigasi Guru */}
       <aside className="fixed inset-y-0 left-0 w-[280px] bg-white border-r border-surface-container-high flex flex-col z-20">
-        
-        {/* Header */}
         <div className="h-20 px-6 flex items-center gap-3 bg-white">
           <div className="w-9 h-9 rounded bg-primary flex items-center justify-center text-white font-bold text-sm shadow-sm">
             GR
@@ -35,7 +52,6 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
 
         <Separator className="bg-surface-container-high" />
 
-        {/* Menu Pilihan */}
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto bg-white">
           <p className="px-3 mb-3 text-[10px] font-bold tracking-widest text-outline uppercase">
             Pelaporan Aktivitas Harian
@@ -63,7 +79,6 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
 
         <Separator className="bg-surface-container-high" />
 
-        {/* Footer Profile */}
         <div className="p-4 bg-surface-bright flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-md bg-amber-600 text-white flex items-center justify-center font-bold text-sm">
@@ -74,13 +89,17 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
               <p className="text-[10px] text-outline font-medium truncate">SMKN 4 Payakumbuh</p>
             </div>
           </div>
-          <button className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer">
+
+          <button 
+            onClick={handleLogout}
+            title="Keluar / Logout"
+            className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer"
+          >
             <LogOut className="w-4 h-4" />
           </button>
         </div>
       </aside>
 
-      {/* Wrapper Konten Utama */}
       <div className="pl-[280px] w-full flex flex-col min-h-screen">
         <main className="flex-1 p-10 max-w-7xl w-full mx-auto space-y-8">
           {children}

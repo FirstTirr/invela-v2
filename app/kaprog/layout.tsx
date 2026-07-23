@@ -9,10 +9,30 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Otomatis menutup sidebar saat berpindah halaman di mobile
   useEffect(() => {
     setIsOpen(false);
   }, [pathname]);
+
+  // FUNGSI LOGOUT LENGKAP
+  const handleLogout = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+
+    if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
+
+    localStorage.clear();
+    sessionStorage.clear();
+
+    const cookies = document.cookie.split(";");
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i];
+      const eqPos = cookie.indexOf("=");
+      const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+    }
+
+    window.location.href = '/login';
+  };
 
   const kaprogMenu = [
     { title: 'Dashboard Overview', href: '/kaprog', icon: LayoutDashboard },
@@ -23,8 +43,6 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen bg-background text-on-surface antialiased flex flex-col md:flex-row selection:bg-secondary-container">
-      
-      {/* Mobile Top Navigation Header */}
       <header className="md:hidden h-16 bg-white border-b border-surface-container-high px-4 flex items-center justify-between sticky top-0 z-30">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-white font-bold text-xs shadow-sm">
@@ -43,7 +61,6 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
         </button>
       </header>
 
-      {/* Backdrop / Overlay untuk Mobile */}
       {isOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-30 md:hidden transition-opacity"
@@ -51,12 +68,9 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
         />
       )}
 
-      {/* Sidebar Navigation */}
       <aside className={`fixed inset-y-0 left-0 w-[280px] bg-white border-r border-surface-container-high flex flex-col z-40 transition-transform duration-300 ease-in-out md:translate-x-0 ${
         isOpen ? "translate-x-0" : "-translate-x-full"
       }`}>
-        
-        {/* Brand Header */}
         <div className="h-20 px-6 border-b border-surface-container flex items-center justify-between bg-white">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded bg-primary flex items-center justify-center text-white font-bold text-sm shadow-sm">
@@ -69,7 +83,6 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
               </p>
             </div>
           </div>
-          {/* Tombol tutup tambahan di dalam sidebar saat layar mobile */}
           <button 
             onClick={() => setIsOpen(false)} 
             className="md:hidden p-1 text-outline hover:text-on-surface rounded"
@@ -78,7 +91,6 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
           </button>
         </div>
 
-        {/* Navigation Section */}
         <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto bg-white">
           <p className="px-3 mb-3 text-[10px] font-bold tracking-widest text-outline uppercase">
             Program Executive View
@@ -104,7 +116,6 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
           })}
         </nav>
 
-        {/* Profile Footer */}
         <div className="p-4 border-t border-surface-container bg-surface-bright flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-md bg-secondary text-white flex items-center justify-center font-bold text-sm">
@@ -115,13 +126,16 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
               <p className="text-[10px] text-outline font-medium truncate">SMKN 4 Payakumbuh</p>
             </div>
           </div>
-          <button className="p-1.5 text-outline hover:text-error hover:bg-error-container/40 rounded transition-colors">
+          <button 
+            onClick={handleLogout} 
+            title="Keluar dari Akun"
+            className="p-1.5 text-outline hover:text-error hover:bg-error-container/40 rounded transition-colors cursor-pointer"
+          >
             <LogOut className="w-4 h-4" />
           </button>
         </div>
       </aside>
 
-      {/* Main Content Wrapper */}
       <div className="flex-1 w-full flex flex-col min-h-screen md:pl-[280px]">
         <main className="flex-1 p-4 sm:p-6 md:p-10 max-w-7xl w-full mx-auto space-y-8">
           {children}

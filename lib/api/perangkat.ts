@@ -1,84 +1,40 @@
-// lib/api/perangkat.ts
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080/api';
+import { fetchWithAuth } from './fetcher';
 
+// 1. Definisikan dan EXPORT interface Perangkat
 export interface Perangkat {
   id: number;
-  nama_perangkat: string;
-  kategori_id: number;
-  id_jurusan: number;
-  id_labor: number;
-  deskripsi: string;
+  nama_perangkat?: string;
+  deskripsi?: string;
+  id_labor?: number | string;
+  kategori_id?: number | string;
   created_at?: string;
   updated_at?: string;
 }
 
-export interface CreatePerangkatInput {
-  nama_perangkat: string;
-  kategori_id: number;
-  id_jurusan: number;
-  id_labor: number;
-  deskripsi?: string;
-}
-
-export interface UpdatePerangkatInput {
-  nama_perangkat?: string;
-  kategori_id?: number;
-  id_jurusan?: number;
-  id_labor?: number;
-  deskripsi?: string;
-}
-
 export const apiPerangkat = {
-  // Method CRUD tetap sama seperti file kamu
-  getAll: async (): Promise<Perangkat[]> => {
-    const res = await fetch(`${BASE_URL}/api/perangkat`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Gagal mengambil data perangkat');
-    const json = await res.json();
-    return json.data || [];
+  async getAll(): Promise<Perangkat[]> {
+    const result = await fetchWithAuth('/api/perangkat', { method: 'GET', cache: 'no-store' });
+    return result.data || [];
   },
-
-  getById: async (id: number): Promise<Perangkat> => {
-    const res = await fetch(`${BASE_URL}/api/perangkat/${id}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('Gagal mengambil detail perangkat');
-    const json = await res.json();
-    return json.data;
+  async getById(id: number): Promise<Perangkat> {
+    const result = await fetchWithAuth(`/api/perangkat/${id}`, { method: 'GET' });
+    return result.data;
   },
-
-  create: async (data: CreatePerangkatInput): Promise<Perangkat> => {
-    const res = await fetch(`${BASE_URL}/api/perangkat`, {
+  async create(payload: Partial<Perangkat>): Promise<Perangkat> {
+    const result = await fetchWithAuth('/api/perangkat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.message || 'Gagal menambahkan perangkat');
-    }
-    const json = await res.json();
-    return json.data;
+    return result.data;
   },
-
-  update: async (id: number, data: UpdatePerangkatInput): Promise<Perangkat> => {
-    const res = await fetch(`${BASE_URL}/api/perangkat/${id}`, {
+  async update(id: number, payload: Partial<Perangkat>): Promise<Perangkat> {
+    const result = await fetchWithAuth(`/api/perangkat/${id}`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+      body: JSON.stringify(payload),
     });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.message || 'Gagal mengubah perangkat');
-    }
-    const json = await res.json();
-    return json.data;
+    return result.data;
   },
-
-  delete: async (id: number): Promise<void> => {
-    const res = await fetch(`${BASE_URL}/api/perangkat/${id}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.message || 'Gagal menghapus perangkat');
-    }
+  async delete(id: number): Promise<void> {
+    await fetchWithAuth(`/api/perangkat/${id}`, { method: 'DELETE' });
   },
 };

@@ -1,20 +1,67 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, User, ArrowRight, ShieldCheck } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Eye, EyeOff, Lock, User, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
+import { apiAuth } from '@/lib/api';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
   const [formData, setFormData] = useState({
     username: '',
     password: '',
     rememberMe: false
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    alert(`Mencoba masuk sebagai: ${formData.username}`);
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await apiAuth.login({
+        username: formData.username,
+        password: formData.password,
+      });
+
+      const user = response.data.user;
+      const roleLower = user.role.toLowerCase();
+
+      // 1. Simpan token & user objek utuh (termasuk jurusan dari DB) ke localStorage
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(user));
+
+      // Jika ada data jurusan dari DB, simpan juga secara spesifik agar mudah diakses
+      if (user.jurusan) {
+        localStorage.setItem('user_jurusan', user.jurusan);
+      }
+      if (user.jurusan_id) {
+        localStorage.setItem('user_jurusan_id', user.jurusan_id.toString());
+      }
+
+      // 2. Simpan ke Cookie (termasuk cookie jurusan untuk middleware/filter)
+      document.cookie = `token=${response.data.token}; path=/; SameSite=Lax`;
+      document.cookie = `user_role=${roleLower}; path=/; SameSite=Lax`;
+      if (user.jurusan) {
+        document.cookie = `user_jurusan=${encodeURIComponent(user.jurusan)}; path=/; SameSite=Lax`;
+      }
+
+      // 3. Redirect keras menggunakan window.location.href agar Cookie & LocalStorage langsung siap
+      const targetPath = ['admin', 'kabeng', 'kaprog', 'sapras', 'guru'].includes(roleLower)
+        ? `/${roleLower}`
+        : '/login';
+
+      window.location.href = targetPath;
+
+    } catch (err: any) {
+      setErrorMessage(err.message || "Terjadi kesalahan saat masuk ke sistem.");
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -24,17 +71,14 @@ export default function LoginPage() {
         {/* ================= SISI KIRI: BRANDING & KATA-KATA (HIDDEN DI HP) ================= */}
         <div className="hidden lg:flex lg:w-[45%] bg-gradient-to-br from-primary via-primary/95 to-primary-container p-12 flex-col justify-between relative overflow-hidden">
           
-          {/* Efek Cahaya Dekoratif di Background */}
           <div className="absolute top-[-20%] right-[-20%] w-[500px] h-[500px] rounded-full bg-white/5 blur-3xl pointer-events-none" />
           <div className="absolute bottom-[-10%] left-[-10%] w-[350px] h-[350px] rounded-full bg-secondary/10 blur-2xl pointer-events-none" />
 
-          {/* Top Info */}
           <div className="flex items-center gap-2 text-white/90">
             <ShieldCheck className="w-5 h-5 text-white animate-pulse" />
             <span className="text-xs font-bold tracking-widest uppercase">SMKN 4 Payakumbuh</span>
           </div>
 
-          {/* Tagline Utama */}
           <div className="space-y-4 relative z-10">
             <h2 className="text-4xl font-extrabold text-white leading-tight">
               Sistem Manajemen & <br />
@@ -45,7 +89,6 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {/* Footer Sisi Kiri */}
           <div className="text-xs text-white/50 font-medium">
             &copy; {new Date().getFullYear()} Invela Control. All rights reserved.
           </div>
@@ -58,11 +101,9 @@ export default function LoginPage() {
             
             {/* LOGO DI ATAS FORM LOGIN */}
             <div className="flex flex-col items-center text-center space-y-3">
-              {/* Box Logo Premium */}
               <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-primary to-primary-container flex items-center justify-center text-white font-black text-xl shadow-md shadow-primary/20 ring-4 ring-primary/5">
                 IC
               </div>
-              {/* Teks Brand */}
               <div>
                 <h1 className="text-2xl font-black tracking-tight text-on-surface uppercase">
                   INVELA<span className="text-primary">CONTROL</span>
@@ -72,6 +113,13 @@ export default function LoginPage() {
                 </p>
               </div>
             </div>
+
+            {/* ALERT ERROR JIKA GAGAL LOGIN */}
+            {errorMessage && (
+              <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium rounded-xl text-center animate-shake">
+                {errorMessage}
+              </div>
+            )}
 
             {/* FORMULIR LOGIN */}
             <form onSubmit={handleSubmit} className="space-y-5">
@@ -86,10 +134,11 @@ export default function LoginPage() {
                   <input 
                     type="text" 
                     required
+                    disabled={isLoading}
                     placeholder="Masukkan username anda..."
                     value={formData.username}
                     onChange={(e) => setFormData({...formData, username: e.target.value})}
-                    className="w-full pl-10 pr-4 py-3 border border-surface-container-high rounded-xl text-sm bg-white text-on-surface placeholder:text-outline/50 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all duration-200 font-medium shadow-sm"
+                    className="w-full pl-10 pr-4 py-3 border border-surface-container-high rounded-xl text-sm bg-white text-on-surface placeholder:text-outline/50 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all duration-200 font-medium shadow-sm disabled:opacity-50"
                   />
                 </div>
               </div>
@@ -106,12 +155,12 @@ export default function LoginPage() {
                   <input 
                     type={showPassword ? "text" : "password"} 
                     required
+                    disabled={isLoading}
                     placeholder="••••••••"
                     value={formData.password}
                     onChange={(e) => setFormData({...formData, password: e.target.value})}
-                    className="w-full pl-10 pr-10 py-3 border border-surface-container-high rounded-xl text-sm bg-white text-on-surface placeholder:text-outline/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all duration-200 font-medium shadow-sm"
+                    className="w-full pl-10 pr-10 py-3 border border-surface-container-high rounded-xl text-sm bg-white text-on-surface placeholder:text-outline/40 focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all duration-200 font-medium shadow-sm disabled:opacity-50"
                   />
-                  {/* Toggle Show/Hide Password */}
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
@@ -127,6 +176,7 @@ export default function LoginPage() {
                 <label className="flex items-center gap-2 cursor-pointer group">
                   <input 
                     type="checkbox"
+                    disabled={isLoading}
                     checked={formData.rememberMe}
                     onChange={(e) => setFormData({...formData, rememberMe: e.target.checked})}
                     className="w-4 h-4 rounded border-surface-container-high text-primary focus:ring-primary/30 cursor-pointer accent-primary" 
@@ -141,10 +191,20 @@ export default function LoginPage() {
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full py-3 px-4 text-sm font-bold text-white bg-primary hover:bg-primary/95 active:scale-[0.98] transition-all duration-200 shadow-md shadow-primary/10 rounded-xl cursor-pointer flex items-center justify-center gap-2 group"
+                  disabled={isLoading}
+                  className="w-full py-3 px-4 text-sm font-bold text-white bg-primary hover:bg-primary/95 active:scale-[0.98] transition-all duration-200 shadow-md shadow-primary/10 rounded-xl cursor-pointer flex items-center justify-center gap-2 group disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  Masuk ke Akun 
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Memproses...
+                    </>
+                  ) : (
+                    <>
+                      Masuk ke Akun 
+                      <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-0.5" />
+                    </>
+                  )}
                 </button>
               </div>
 

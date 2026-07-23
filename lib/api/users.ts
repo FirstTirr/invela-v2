@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+import { fetchWithAuth } from './fetcher';
 
 export interface UserResponse {
   id: number;
@@ -28,82 +28,33 @@ export interface UpdateUserInput {
 }
 
 export const apiUsers = {
-  // GET: Fetch list seluruh user
   async getAll(): Promise<UserResponse[]> {
-    const res = await fetch(`${BASE_URL}/api/user`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      cache: 'no-store',
-    });
-
-    if (!res.ok) {
-      throw new Error('Gagal mengambil data pengguna');
-    }
-
-    const result = await res.json();
+    const result = await fetchWithAuth('/api/user', { method: 'GET', cache: 'no-store' });
     return result.data || [];
   },
 
-  // GET: Fetch detail user berdasarkan ID
   async getById(id: number): Promise<UserResponse> {
-    const res = await fetch(`${BASE_URL}/api/user/${id}`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.message || 'Pengguna tidak ditemukan');
-    }
-
-    const result = await res.json();
+    const result = await fetchWithAuth(`/api/user/${id}`, { method: 'GET' });
     return result.data;
   },
 
-  // POST: Tambah user baru
   async create(input: CreateUserInput): Promise<UserResponse> {
-    const res = await fetch(`${BASE_URL}/api/user`, {
+    const result = await fetchWithAuth('/api/user', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     });
-
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.message || 'Gagal membuat akun pengguna');
-    }
-
-    const result = await res.json();
     return result.data;
   },
 
-  // PUT: Update data user
   async update(id: number, input: UpdateUserInput): Promise<UserResponse> {
-    const res = await fetch(`${BASE_URL}/api/user/${id}`, {
+    const result = await fetchWithAuth(`/api/user/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     });
-
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.message || 'Gagal memperbarui pengguna');
-    }
-
-    const result = await res.json();
     return result.data;
   },
 
-  // DELETE: Hapus user
   async delete(id: number): Promise<void> {
-    const res = await fetch(`${BASE_URL}/api/user/${id}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-    });
-
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.message || 'Gagal menghapus pengguna');
-    }
+    await fetchWithAuth(`/api/user/${id}`, { method: 'DELETE' });
   },
 };

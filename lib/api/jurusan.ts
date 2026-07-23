@@ -1,4 +1,4 @@
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL;
+import { fetchWithAuth } from './fetcher';
 
 export interface Jurusan {
   id: number;
@@ -9,46 +9,27 @@ export interface Jurusan {
 
 export const apiJurusan = {
   async getAll(): Promise<Jurusan[]> {
-    const res = await fetch(`${BASE_URL}/api/jurusan`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-      cache: 'no-store',
-    });
-    if (!res.ok) throw new Error('Gagal mengambil data jurusan');
-    const result = await res.json();
+    const result = await fetchWithAuth('/api/jurusan', { method: 'GET', cache: 'no-store' });
     return result.data || [];
   },
 
   async create(namaJurusan: string): Promise<Jurusan> {
-    const res = await fetch(`${BASE_URL}/api/jurusan`, {
+    const result = await fetchWithAuth('/api/jurusan', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nama_jurusan: namaJurusan }),
     });
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.message || 'Gagal menyimpan jurusan');
-    }
-    const result = await res.json();
     return result.data;
   },
 
   async update(id: number, namaJurusan: string): Promise<Jurusan> {
-    const res = await fetch(`${BASE_URL}/api/jurusan/${id}`, {
+    const result = await fetchWithAuth(`/api/jurusan/${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nama_jurusan: namaJurusan }),
     });
-    if (!res.ok) throw new Error('Gagal memperbarui jurusan');
-    const result = await res.json();
     return result.data;
   },
 
   async delete(id: number): Promise<void> {
-    const res = await fetch(`${BASE_URL}/api/jurusan/${id}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-    });
-    if (!res.ok) throw new Error('Gagal menghapus data jurusan');
-  }
+    await fetchWithAuth(`/api/jurusan/${id}`, { method: 'DELETE' });
+  },
 };

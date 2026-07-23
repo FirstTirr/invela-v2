@@ -29,9 +29,9 @@ export default function UsersCRUDPage() {
   // Opsi Role yang dipetakan ke uint ID
   const roleOptions = [
     { id: 1, label: 'Kepala Bengkel (Kabeng)' },
-    { id: 2, label: 'Kepala Prodi (Kaprog)' },
-    { id: 3, label: 'Sarana Prasarana (Sapras)' },
-    { id: 4, label: 'Guru' },
+    { id: 2, label: 'Guru' },
+    { id: 3, label: 'Kepala Prodi (Kaprog)' },
+    { id: 4, label: 'Sarana Prasarana (Sapras)' },
   ];
 
   // Fetch daftar user dari Backend Go

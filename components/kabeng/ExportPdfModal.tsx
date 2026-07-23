@@ -28,7 +28,6 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
       if (laborList.length > 0 && selectedLaborId === 0) {
         setSelectedLaborId(laborList[0].id);
       }
-      // Tracking otomatis lokasi dan waktu (Bulan Tahun / Tanggal lokal)
       const now = new Date();
       const options: Intl.DateTimeFormatOptions = { month: 'long', year: 'numeric' };
       const formattedDate = now.toLocaleDateString('id-ID', options);
@@ -70,16 +69,18 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
       const tableRows: any[] = [];
 
       filteredItems.forEach((item, index) => {
-        // Cek kondisi unit instances jika ada
         const baikCount = item.instances ? item.instances.filter((i: any) => i.status === 'aktif').length : item.jumlah_stok;
         const rusakCount = item.instances ? item.instances.filter((i: any) => i.status === 'rusak' || i.status === 'perbaikan').length : 0;
 
+        const baikText = baikCount > 0 ? "CHECKED" : "-";
+        const rusakText = rusakCount > 0 ? `${rusakCount}` : "-";
+
         tableRows.push([
           index + 1,
-          item.nama_perangkat,
-          item.jumlah_stok,
-          baikCount > 0 ? "✓" : "",
-          rusakCount > 0 ? `${rusakCount}` : "",
+          item.nama_perangkat || item.namaPerangkat,
+          item.jumlah_stok || item.jumlahStok || 0,
+          baikText,
+          rusakText,
           item.deskripsi || ""
         ]);
       });
@@ -89,22 +90,57 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
         head: [tableColumn],
         body: tableRows,
         theme: 'grid',
-        headStyles: { fillColor: [40, 40, 40], textColor: [255, 255, 255], fontStyle: 'bold' },
-        styles: { fontSize: 10, cellPadding: 5 }
+        headStyles: { 
+          fillColor: [30, 41, 59], 
+          textColor: [255, 255, 255], 
+          fontStyle: 'bold', 
+          halign: 'center' 
+        },
+        columnStyles: {
+          0: { halign: 'center', cellWidth: 12 },
+          2: { halign: 'center', cellWidth: 20 },
+          3: { halign: 'center', cellWidth: 20 }, // Kolom Baik
+          4: { halign: 'center', cellWidth: 20 }, // Kolom Rusak
+        },
+        styles: { fontSize: 10, cellPadding: 4, valign: 'middle' },
+        margin: { bottom: 65 },
+
+        // 🎨 RENDER CENTANG HITAM PRESISI ALA LUCIDE
+        didParseCell: (data) => {
+          if (data.section === 'body' && data.column.index === 3 && data.cell.raw === 'CHECKED') {
+            data.cell.text = [''];
+          }
+        },
+        didDrawCell: (data) => {
+          if (data.section === 'body' && data.column.index === 3 && data.cell.raw === 'CHECKED') {
+            const x = data.cell.x + data.cell.width / 2;
+            const y = data.cell.y + data.cell.height / 2;
+
+            doc.setDrawColor(0, 0, 0); // Hitam Pekat
+            doc.setLineWidth(0.9);    // Ketebalan pas ala Icon Lucide
+
+            // Dimensi lebih kecil dan presisi di tengah
+            doc.line(x - 2.5, y - 0.2, x - 0.8, y + 1.8);
+            doc.line(x - 0.8, y + 1.8, x + 2.5, y - 2.2);
+          }
+        }
       });
 
-      // Tanda Tangan / Footer
-      const finalY = (doc as any).lastAutoTable.finalY || 150;
+      // Posisi Tanda Tangan
+      const pageCount = doc.getNumberOfPages();
+      doc.setPage(pageCount);
+
       const pageHeight = doc.internal.pageSize.getHeight();
-      const signatureY = finalY + 25 > pageHeight - 40 ? pageHeight - 40 : finalY + 25;
+      const signatureY = pageHeight - 50;
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
+      
       doc.text(lokasiTanggal, 14, signatureY);
-      doc.text(`Mengetahui Kepala Laboratorium`, 14, signatureY + 6);
-
-      doc.text("__________________________", 14, signatureY + 30);
-      doc.text(`NIP. ${nip || '-'}`, 14, signatureY + 36);
+      doc.text("Mengetahui Kepala Laboratorium", 14, signatureY + 6);
+      doc.text("__________________________", 14, signatureY + 28);
+      doc.setFont("helvetica", "bold");
+      doc.text(`NIP. ${nip || '-'}`, 14, signatureY + 34);
 
       doc.save(`Inventaris_${laborName.replace(/\s+/g, '_')}.pdf`);
       onClose();

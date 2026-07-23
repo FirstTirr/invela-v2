@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { Plus, Edit2, Trash2, X, Search, Loader2, Boxes, FileText } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Search, Loader2, Boxes, FileText, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { 
@@ -32,6 +32,15 @@ export default function KabengItemsPage() {
   const [displayItems, setDisplayItems] = useState<DisplayPerangkat[]>([]);
   const [loadingItems, setLoadingItems] = useState<boolean>(true);
   const [errorItems, setErrorItems] = useState<string | null>(null);
+
+  // State User Login
+  const [currentUser, setCurrentUser] = useState<{
+    id?: number;
+    username?: string;
+    role?: string;
+    jurusan_id?: number | null;
+    jurusan?: string | null;
+  } | null>(null);
 
   const [isOpenAddModal, setIsOpenAddModal] = useState(false);
   const [isOpenEditModal, setIsOpenEditModal] = useState(false);
@@ -65,6 +74,19 @@ export default function KabengItemsPage() {
     deskripsi: ''
   });
 
+  // 1. Baca Data User Sesi Login
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser);
+        setCurrentUser(parsed);
+      }
+    } catch (e) {
+      console.error('Gagal membaca data user dari localStorage:', e);
+    }
+  }, []);
+
   const fetchItems = async () => {
     try {
       setLoadingItems(true);
@@ -75,14 +97,17 @@ export default function KabengItemsPage() {
         apiItemInstance.getAll()
       ]);
 
-      const formatted: DisplayPerangkat[] = perangkatData.map(p => {
+      const formatted: DisplayPerangkat[] = perangkatData.map((p: any) => {
         const matchingInstances = instanceData.filter(inst => Number(inst.id_perangkat) === p.id);
+        const jurusanId = p.id_jurusan ?? p.jurusan_id ?? 0;
+        const laborId = p.id_labor ?? p.labor_id ?? 0;
+
         return {
           id: p.id,
           nama_perangkat: p.nama_perangkat,
-          kategori_id: p.kategori_id,
-          id_jurusan: p.id_jurusan,
-          id_labor: p.id_labor,
+          kategori_id: Number(p.kategori_id),
+          id_jurusan: Number(jurusanId),
+          id_labor: Number(laborId),
           deskripsi: p.deskripsi,
           jumlah_stok: matchingInstances.length,
           kode_asset_sample: matchingInstances.length > 0 ? matchingInstances[0].kode_asset : '-',
@@ -109,16 +134,6 @@ export default function KabengItemsPage() {
       setJurusanList(dataJurusan);
       setKategoriList(dataKategori);
       setLaborList(dataLabor);
-
-      if (dataJurusan.length > 0 && addFormData.id_jurusan === 0) {
-        setAddFormData(prev => ({ ...prev, id_jurusan: dataJurusan[0].id }));
-      }
-      if (dataKategori.length > 0 && addFormData.kategori_id === 0) {
-        setAddFormData(prev => ({ ...prev, kategori_id: dataKategori[0].id }));
-      }
-      if (dataLabor.length > 0 && addFormData.id_labor === 0) {
-        setAddFormData(prev => ({ ...prev, id_labor: dataLabor[0].id }));
-      }
     } catch (err) {
       console.error("Gagal memuat master data:", err);
     }
@@ -127,13 +142,40 @@ export default function KabengItemsPage() {
   useEffect(() => {
     fetchItems();
     fetchMasterData();
-  }, []);
+  }, [currentUser]);
+
+  // Handler Buka Modal Input Tambah Perangkat dengan Auto-Set Jurusan
+  const handleOpenAddModal = () => {
+    const userJurusanId = currentUser?.jurusan_id ? Number(currentUser.jurusan_id) : (jurusanList[0]?.id || 0);
+    const initialKategori = kategoriList[0]?.id || 0;
+    const initialLabor = laborList[0]?.id || 0;
+
+    setAddFormData({
+      nama_perangkat: '',
+      kode_asset: '',
+      jumlah_unit: 1,
+      kategori_id: initialKategori,
+      id_jurusan: userJurusanId,
+      id_labor: initialLabor,
+      status: 'aktif',
+      deskripsi: ''
+    });
+    
+    setIsOpenAddModal(true);
+  };
 
   const getJurusanName = (id: number) => jurusanList.find(j => j.id === id)?.nama_jurusan || `ID: ${id}`;
   const getLaborName = (id: number) => laborList.find(l => l.id === id)?.labor || `ID: ${id}`;
   const getKategoriName = (id: number) => kategoriList.find(k => k.id === id)?.kategori || `ID: ${id}`;
 
   const filteredItems = displayItems.filter((item) => {
+    const userJurusanId = currentUser?.jurusan_id ? Number(currentUser.jurusan_id) : null;
+    const isRestrictedRole = currentUser?.role === 'kabeng' || currentUser?.role === 'kaprog';
+    
+    if (isRestrictedRole && userJurusanId && Number(item.id_jurusan) !== userJurusanId) {
+      return false;
+    }
+
     const q = searchQuery.toLowerCase().trim();
     return (
       item.nama_perangkat.toLowerCase().includes(q) ||
@@ -142,7 +184,7 @@ export default function KabengItemsPage() {
   });
 
   const handleEditClick = (item: DisplayPerangkat) => {
-    setEditingPerangkat(item);
+    setEditingPerangkat(item as unknown as Perangkat);
     setEditFormData({
       nama_perangkat: item.nama_perangkat,
       kategori_id: item.kategori_id,
@@ -153,7 +195,6 @@ export default function KabengItemsPage() {
     setIsOpenEditModal(true);
   };
 
-  // Validasi Penghapusan: Jika item instance masih ada, tolak dan beri peringatan
   const handleDeletePerangkat = async (item: DisplayPerangkat) => {
     if (item.jumlah_stok > 0) {
       alert(`Perangkat [${item.nama_perangkat}] masih memiliki ${item.jumlah_stok} unit instance!\n\nHapus terlebih dahulu item instance melalui tombol "Kelola Unit" sebelum menghapus perangkat ini.`);
@@ -179,13 +220,17 @@ export default function KabengItemsPage() {
     try {
       setIsSubmitting(true);
 
-      const newPerangkat = await apiPerangkat.create({
+      const payload: any = {
         nama_perangkat: addFormData.nama_perangkat,
         kategori_id: Number(addFormData.kategori_id),
         id_jurusan: Number(addFormData.id_jurusan),
+        jurusan_id: Number(addFormData.id_jurusan),
         id_labor: Number(addFormData.id_labor),
+        labor_id: Number(addFormData.id_labor),
         deskripsi: addFormData.deskripsi
-      });
+      };
+
+      const newPerangkat = await apiPerangkat.create(payload);
 
       const totalUnits = Math.max(1, addFormData.jumlah_unit);
       const instanceRequests = [];
@@ -205,16 +250,6 @@ export default function KabengItemsPage() {
       await fetchItems();
       setIsOpenAddModal(false);
       
-      setAddFormData({
-        nama_perangkat: '',
-        kode_asset: '',
-        jumlah_unit: 1,
-        kategori_id: kategoriList[0]?.id || 0,
-        id_jurusan: jurusanList[0]?.id || 0,
-        id_labor: laborList[0]?.id || 0,
-        status: 'aktif',
-        deskripsi: ''
-      });
       alert(`Berhasil menambahkan perangkat dan ${totalUnits} unit fisik!`);
     } catch (err: any) {
       alert(`Gagal menyimpan: ${err.message}`);
@@ -229,13 +264,18 @@ export default function KabengItemsPage() {
 
     try {
       setIsSubmitting(true);
-      await apiPerangkat.update(editingPerangkat.id, {
+
+      const payload: any = {
         nama_perangkat: editFormData.nama_perangkat,
         kategori_id: Number(editFormData.kategori_id),
         id_jurusan: Number(editFormData.id_jurusan),
+        jurusan_id: Number(editFormData.id_jurusan),
         id_labor: Number(editFormData.id_labor),
+        labor_id: Number(editFormData.id_labor),
         deskripsi: editFormData.deskripsi
-      });
+      };
+
+      await apiPerangkat.update(editingPerangkat.id, payload);
 
       await fetchItems();
       setIsOpenEditModal(false);
@@ -248,6 +288,8 @@ export default function KabengItemsPage() {
     }
   };
 
+  const isKabengOrKaprog = currentUser?.role === 'kabeng' || currentUser?.role === 'kaprog';
+
   return (
     <PageAnimateWrapper>
       <div className="space-y-6 font-sans antialiased tracking-tight">
@@ -255,7 +297,14 @@ export default function KabengItemsPage() {
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-surface-container pb-4">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-on-surface">Manajemen & Registrasi Perangkat</h1>
-            <p className="text-base text-on-surface-variant mt-1 font-medium">Input data aset perangkat baru dan kelola unit laboratorium.</p>
+            <p className="text-base text-on-surface-variant mt-1 font-medium flex items-center gap-2">
+              Input data aset perangkat baru dan kelola unit laboratorium.
+              {currentUser?.jurusan && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-bold border border-primary/20 uppercase">
+                  <Filter className="w-3 h-3" /> Jurusan: {currentUser.jurusan}
+                </span>
+              )}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <button 
@@ -265,7 +314,7 @@ export default function KabengItemsPage() {
               <FileText className="w-4 h-4 text-primary" /> Export PDF
             </button>
             <button 
-              onClick={() => setIsOpenAddModal(true)}
+              onClick={handleOpenAddModal}
               className="px-5 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
             >
               <Plus className="w-5 h-5" /> Input Perangkat Baru
@@ -452,9 +501,10 @@ export default function KabengItemsPage() {
                       <label className="text-xs font-bold text-outline uppercase tracking-wider">Jurusan</label>
                       <select 
                         required
+                        disabled={isKabengOrKaprog}
                         value={addFormData.id_jurusan}
                         onChange={(e) => setAddFormData({...addFormData, id_jurusan: Number(e.target.value)})}
-                        className="w-full px-3 py-2.5 border border-surface-container-high rounded-lg text-sm font-semibold"
+                        className="w-full px-3 py-2.5 border border-surface-container-high rounded-lg text-sm font-semibold uppercase disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                       >
                         {jurusanList.map((j) => (
                           <option key={j.id} value={j.id}>{j.nama_jurusan}</option>
@@ -570,9 +620,10 @@ export default function KabengItemsPage() {
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-outline uppercase tracking-wider">Jurusan</label>
                       <select 
+                        disabled={isKabengOrKaprog}
                         value={editFormData.id_jurusan}
                         onChange={(e) => setEditFormData({...editFormData, id_jurusan: Number(e.target.value)})}
-                        className="w-full px-3 py-2.5 border border-surface-container-high rounded-lg text-sm font-semibold"
+                        className="w-full px-3 py-2.5 border border-surface-container-high rounded-lg text-sm font-semibold uppercase disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
                       >
                         {jurusanList.map((j) => (
                           <option key={j.id} value={j.id}>{j.nama_jurusan}</option>
@@ -629,8 +680,7 @@ export default function KabengItemsPage() {
                     <button 
                       type="submit" 
                       disabled={isSubmitting}
-                      className="px-6 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg cursor-pointer shadow-sm disabled:opacity-50"
-                    >
+                      className="px-6 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg cursor-pointer shadow-sm disabled:opacity-50">
                       {isSubmitting ? 'Memperbarui...' : 'Update Data'}
                     </button>
                   </div>
@@ -640,13 +690,13 @@ export default function KabengItemsPage() {
           )}
         </AnimatePresence>
 
-        {/* MODAL EXPORT PDF */}
-        <ExportPdfModal 
-          isOpen={isOpenPdfModal}
-          onClose={() => setIsOpenPdfModal(false)}
-          laborList={laborList}
-          displayItems={displayItems}
-        />
+        {/* Export PDF Modal */}
+        {isOpenPdfModal && (
+          <ExportPdfModal 
+            isOpen={isOpenPdfModal} 
+            onClose={() => setIsOpenPdfModal(false)} 
+          />
+        )}
       </div>
     </PageAnimateWrapper>
   );

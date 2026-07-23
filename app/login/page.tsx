@@ -30,28 +30,37 @@ export default function LoginPage() {
       });
 
       const user = response.data.user;
-      const roleLower = user.role.toLowerCase();
+      const roleLower = user.role ? user.role.toLowerCase() : '';
 
-      // 1. Simpan token & user objek utuh (termasuk jurusan dari DB) ke localStorage
+      // 1. Simpan token & user objek utuh ke localStorage
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(user));
 
-      // Jika ada data jurusan dari DB, simpan juga secara spesifik agar mudah diakses
       if (user.jurusan) {
         localStorage.setItem('user_jurusan', user.jurusan);
       }
-      if (user.jurusan_id) {
+      if (user.jurusan_id !== undefined && user.jurusan_id !== null) {
         localStorage.setItem('user_jurusan_id', user.jurusan_id.toString());
+      } else {
+        localStorage.removeItem('user_jurusan_id');
       }
 
-      // 2. Simpan ke Cookie (termasuk cookie jurusan untuk middleware/filter)
+      // 2. Simpan ke Cookie (termasuk user_jurusan_id agar siap dibaca middleware/API)
       document.cookie = `token=${response.data.token}; path=/; SameSite=Lax`;
       document.cookie = `user_role=${roleLower}; path=/; SameSite=Lax`;
+
       if (user.jurusan) {
         document.cookie = `user_jurusan=${encodeURIComponent(user.jurusan)}; path=/; SameSite=Lax`;
       }
 
-      // 3. Redirect keras menggunakan window.location.href agar Cookie & LocalStorage langsung siap
+      if (user.jurusan_id !== undefined && user.jurusan_id !== null) {
+        document.cookie = `user_jurusan_id=${user.jurusan_id}; path=/; SameSite=Lax`;
+      } else {
+        // Hapus cookie jurusan_id jika role global (Guru/Sapras)
+        document.cookie = `user_jurusan_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax`;
+      }
+
+      // 3. Redirect ke dashboard role masing-masing
       const targetPath = ['admin', 'kabeng', 'kaprog', 'sapras', 'guru'].includes(roleLower)
         ? `/${roleLower}`
         : '/login';
@@ -68,9 +77,8 @@ export default function LoginPage() {
     <PageAnimateWrapper>
       <div className="min-h-screen w-full flex bg-surface-bright font-sans antialiased tracking-tight select-none">
         
-        {/* ================= SISI KIRI: BRANDING & KATA-KATA (HIDDEN DI HP) ================= */}
+        {/* SISI KIRI: BRANDING & KATA-KATA */}
         <div className="hidden lg:flex lg:w-[45%] bg-gradient-to-br from-primary via-primary/95 to-primary-container p-12 flex-col justify-between relative overflow-hidden">
-          
           <div className="absolute top-[-20%] right-[-20%] w-[500px] h-[500px] rounded-full bg-white/5 blur-3xl pointer-events-none" />
           <div className="absolute bottom-[-10%] left-[-10%] w-[350px] h-[350px] rounded-full bg-secondary/10 blur-2xl pointer-events-none" />
 
@@ -94,9 +102,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* ================= SISI KANAN: FORM LOGIN UTAMA ================= */}
+        {/* SISI KANAN: FORM LOGIN UTAMA */}
         <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 md:p-20 bg-white">
-          
           <div className="w-full max-w-[420px] space-y-8">
             
             {/* LOGO DI ATAS FORM LOGIN */}
@@ -211,7 +218,6 @@ export default function LoginPage() {
             </form>
 
           </div>
-
         </div>
 
       </div>

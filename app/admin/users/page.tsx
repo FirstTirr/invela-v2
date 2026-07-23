@@ -18,21 +18,30 @@ export default function UsersCRUDPage() {
   const [jurusanList, setJurusanList] = useState<Jurusan[]>([]);
   const [loadingJurusan, setLoadingJurusan] = useState<boolean>(false);
 
-  // Form State
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    role_id: 1, // Default Role ID (1: Kabeng, 2: Kaprog, 3: Sapras, 4: Guru)
-    jurusan_id: null as number | null,
-  });
-
   // Opsi Role yang dipetakan ke uint ID
+  // ID Role Backend: 1 = Kabeng, 2 = Guru, 3 = Kaprog, 4 = Sapras
   const roleOptions = [
     { id: 1, label: 'Kepala Bengkel (Kabeng)' },
     { id: 2, label: 'Guru' },
     { id: 3, label: 'Kepala Prodi (Kaprog)' },
     { id: 4, label: 'Sarana Prasarana (Sapras)' },
   ];
+
+  // Form State
+  const [formData, setFormData] = useState({
+    username: '',
+    password: '',
+    role_id: 1, // Default Role ID (1: Kabeng)
+    jurusan_id: null as number | null,
+  });
+
+  // Pengecekan apakah role mengakses semua jurusan (Guru = 2, Sapras = 4)
+  const isGlobalRole = (roleId: number) => roleId === 2 || roleId === 4;
+
+  // Filter daftar jurusan khusus untuk Kabeng/Kaprog (Membuang record "SEMUA JURUSAN")
+  const filteredJurusanList = jurusanList.filter(
+    (j) => !j.nama_jurusan.toLowerCase().includes('semua')
+  );
 
   // Fetch daftar user dari Backend Go
   const fetchUsers = async () => {
@@ -60,8 +69,13 @@ export default function UsersCRUDPage() {
         const data = await apiJurusan.getAll();
         setJurusanList(data);
 
-        if (data.length > 0 && formData.jurusan_id === null) {
-          setFormData((prev) => ({ ...prev, jurusan_id: data[0].id }));
+        // Ambil jurusan spesifik pertama (bukan "Semua Jurusan") untuk default value Kabeng/Kaprog
+        const validJurusanList = data.filter(
+          (j) => !j.nama_jurusan.toLowerCase().includes('semua')
+        );
+
+        if (validJurusanList.length > 0 && formData.jurusan_id === null && !isGlobalRole(formData.role_id)) {
+          setFormData((prev) => ({ ...prev, jurusan_id: validJurusanList[0].id }));
         }
       } catch (err) {
         console.error('Gagal mengambil data jurusan:', err);
@@ -93,6 +107,18 @@ export default function UsersCRUDPage() {
     }
   };
 
+  // Handler Ganti Role
+  const handleRoleChange = (selectedRoleId: number) => {
+    const isGlobal = isGlobalRole(selectedRoleId);
+    setFormData((prev) => ({
+      ...prev,
+      role_id: selectedRoleId,
+      // Jika Guru / Sapras -> jurusan_id paksa null
+      // Jika Kabeng / Kaprog -> ambil nilai spesifik pertama (bukan Semua Jurusan)
+      jurusan_id: isGlobal ? null : (prev.jurusan_id || filteredJurusanList[0]?.id || null)
+    }));
+  };
+
   // Submit Handler -> Kirim data ke API Go
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,11 +126,14 @@ export default function UsersCRUDPage() {
     try {
       setIsSubmitting(true);
 
+      const isGlobal = isGlobalRole(Number(formData.role_id));
+
       const payload = {
         username: formData.username.trim(),
         password_hash: formData.password,
         role_id: Number(formData.role_id),
-        jurusan_id: formData.role_id === 3 ? null : formData.jurusan_id,
+        // Guru (2) dan Sapras (4) selalu NULL, Kabeng (1) dan Kaprog (3) kirim ID jurusan spesifik
+        jurusan_id: isGlobal ? null : (formData.jurusan_id ? Number(formData.jurusan_id) : null),
       };
 
       await apiUsers.create(payload);
@@ -119,7 +148,7 @@ export default function UsersCRUDPage() {
         username: '',
         password: '',
         role_id: 1,
-        jurusan_id: jurusanList[0]?.id || null,
+        jurusan_id: filteredJurusanList[0]?.id || null,
       });
       setShowPassword(false);
       alert('Akun pengguna berhasil didaftarkan!');
@@ -138,7 +167,7 @@ export default function UsersCRUDPage() {
           <div>
             <h1 className="text-3xl font-bold text-on-surface">Memantau Akun Pengguna</h1>
             <p className="text-base text-on-surface-variant mt-2 font-medium">
-              Manajemen hak otentikasi login untuk Kepala Bengkel, Ketua Prodi, dan Sarpras.
+              Manajemen hak otentikasi login untuk Kepala Bengkel, Ketua Prodi, Guru, dan Sarpras.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -192,11 +221,10 @@ export default function UsersCRUDPage() {
                   </tr>
                 ) : (
                   users.map((user) => {
-                    // Pengecekan fleksibel: apakah 'jurusan' bertipe string atau object { nama_jurusan }
                     const rawJurusan = user.jurusan as any;
                     const namaJurusanDisplay = typeof rawJurusan === 'string' 
                       ? rawJurusan 
-                      : rawJurusan?.nama_jurusan || 'Semua Jurusan';
+                      : rawJurusan?.nama_jurusan || 'SEMUA JURUSAN';
 
                     return (
                       <tr key={user.id} className="hover:bg-surface-low/30 transition-colors">
@@ -205,7 +233,7 @@ export default function UsersCRUDPage() {
                           {namaJurusanDisplay}
                         </td>
                         <td className="p-5">
-                          <span className="inline-block px-3 py-1 rounded-md text-sm font-bold border bg-blue-50 text-blue-900 border-blue-200">
+                          <span className="inline-block px-3 py-1 rounded-md text-sm font-bold border bg-blue-50 text-blue-900 border-blue-200 uppercase">
                             {user.role}
                           </span>
                         </td>
@@ -303,7 +331,7 @@ export default function UsersCRUDPage() {
                   <div className="relative">
                     <select
                       value={formData.role_id}
-                      onChange={(e) => setFormData({ ...formData, role_id: Number(e.target.value) })}
+                      onChange={(e) => handleRoleChange(Number(e.target.value))}
                       className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-bold shadow-sm appearance-none cursor-pointer"
                     >
                       {roleOptions.map((r) => (
@@ -327,15 +355,15 @@ export default function UsersCRUDPage() {
                   </label>
                   <div className="relative">
                     <select
-                      disabled={formData.role_id === 3 || loadingJurusan}
-                      value={formData.role_id === 3 ? '' : (formData.jurusan_id ?? '')}
+                      disabled={isGlobalRole(formData.role_id) || loadingJurusan}
+                      value={isGlobalRole(formData.role_id) ? '' : (formData.jurusan_id ?? '')}
                       onChange={(e) => setFormData({ ...formData, jurusan_id: Number(e.target.value) })}
                       className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-bold shadow-sm appearance-none cursor-pointer disabled:bg-surface-low disabled:text-outline disabled:cursor-not-allowed uppercase"
                     >
-                      {formData.role_id === 3 ? (
-                        <option value="">Semua Jurusan (Khusus Sapras)</option>
+                      {isGlobalRole(formData.role_id) ? (
+                        <option value="">Semua Jurusan (Akses Global)</option>
                       ) : (
-                        jurusanList.map((j) => (
+                        filteredJurusanList.map((j) => (
                           <option key={j.id} value={j.id}>
                             {j.nama_jurusan}
                           </option>

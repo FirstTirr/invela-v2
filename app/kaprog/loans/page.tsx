@@ -2,8 +2,23 @@
 
 import React, { useEffect, useState } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { apiPeminjaman, Peminjaman } from '@/lib/api/peminjaman';
+import { apiPeminjaman } from '@/lib/api/peminjaman';
 import { Clock, CheckCircle2, Search } from 'lucide-react';
+
+// Interface Peminjaman didefinisikan secara lokal di sini
+export interface Peminjaman {
+  id: number;
+  id_item_instance: number;
+  nama_peminjam: string;
+  tanggal_pinjam?: string;
+  tanggal_kembali?: string;
+  status: string;
+  item_instance?: {
+    perangkat?: {
+      nama_perangkat?: string;
+    };
+  };
+}
 
 export default function KaprogLoansPage() {
   const [loans, setLoans] = useState<Peminjaman[]>([]);

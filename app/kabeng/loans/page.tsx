@@ -2,21 +2,49 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { Plus, X, Search, ChevronDown, Check, Loader2, CheckCircle, History, Lock } from 'lucide-react';
+import { Plus, X, Search, ChevronDown, Check, Loader2, CheckCircle, History } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { 
   apiPerangkat, 
   apiItemInstance, 
-  apiPeminjaman, 
-  ItemInstance, 
-  Peminjaman 
+  apiPeminjaman 
 } from '@/lib/api';
+
+// Definisikan Interface lokal agar aman dari error mismatch tipe data API
+interface ItemInstanceLocal {
+  id: number;
+  kode_asset: string;
+  id_perangkat: number;
+  status: string;
+}
 
 interface ItemInventory {
   id: number;
   namaBarang: string;
-  assets: ItemInstance[];
+  assets: ItemInstanceLocal[];
+}
+
+interface PeminjamanItem {
+  id: number;
+  id_item_instance: number;
+  nama_peminjam: string;
+  nomor_telepon: string;
+  tanggal_pinjam: string;
+  tanggal_kembali: string;
+  status: string;
+  item_instance?: {
+    id: number;
+    kode_asset: string;
+    perangkat?: {
+      nama_perangkat?: string;
+      labor?: {
+        id_jurusan?: number | string;
+        jurusan_id?: number | string;
+      };
+      id_jurusan?: number | string;
+    };
+  };
 }
 
 export default function KabengLoansPage() {
@@ -27,13 +55,13 @@ export default function KabengLoansPage() {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // State Data dari Backend
+  // State Data dari Backend menggunakan tipe lokal yang aman
   const [inventoryData, setInventoryData] = useState<ItemInventory[]>([]);
-  const [loans, setLoans] = useState<Peminjaman[]>([]);
+  const [loans, setLoans] = useState<PeminjamanItem[]>([]);
 
   // Form State
   const [selectedBarang, setSelectedBarang] = useState<ItemInventory | null>(null);
-  const [selectedAsset, setSelectedAsset] = useState<ItemInstance | null>(null);
+  const [selectedAsset, setSelectedAsset] = useState<ItemInstanceLocal | null>(null);
   const [namaPeminjam, setNamaPeminjam] = useState('');
   const [nomorTelepon, setNomorTelepon] = useState('');
   const [tanggalPinjam, setTanggalPinjam] = useState('');
@@ -50,13 +78,30 @@ export default function KabengLoansPage() {
   const barangDropdownRef = useRef<HTMLDivElement>(null);
   const assetDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Fetch daftar peminjaman
+  // Fetch daftar peminjaman terfilter jurusan
   const fetchLoans = async () => {
     try {
       setLoadingLoans(true);
+
+      const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      const currentUser = userStr ? JSON.parse(userStr) : null;
+      const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
+
       const data = await apiPeminjaman.getAll();
-      const activeLoans = data.filter((loan) => loan.status === 'aktif');
-      setLoans(activeLoans);
+      
+      const filteredLoans = (data || []).filter((loan: any) => {
+        if (loan.status !== 'aktif') return false;
+        if (!myJurusanId) return true;
+
+        const itemJurusanId = 
+          loan.item_instance?.perangkat?.labor?.id_jurusan ||
+          loan.item_instance?.perangkat?.labor?.jurusan_id ||
+          loan.item_instance?.perangkat?.id_jurusan;
+
+        return itemJurusanId ? String(itemJurusanId) === myJurusanId : true;
+      });
+
+      setLoans(filteredLoans);
     } catch (err: any) {
       console.error("Gagal memuat log peminjaman:", err);
     } finally {
@@ -64,20 +109,40 @@ export default function KabengLoansPage() {
     }
   };
 
-  // Fetch data Perangkat & ItemInstance
+  // Fetch data Perangkat & ItemInstance terfilter jurusan
   const fetchInventory = async () => {
     try {
       setLoadingInventory(true);
+
+      const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      const currentUser = userStr ? JSON.parse(userStr) : null;
+      const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
+
       const [perangkatList, instanceList] = await Promise.all([
         apiPerangkat.getAll(),
         apiItemInstance.getAll()
       ]);
 
-      const grouped: ItemInventory[] = perangkatList.map(p => {
-        const assets = instanceList.filter(inst => Number(inst.id_perangkat) === p.id);
+      // Filter perangkat sesuai jurusan
+      const filteredPerangkat = (perangkatList || []).filter((p: any) => {
+        if (!myJurusanId) return true;
+        const pJurusanId = p.labor?.id_jurusan || p.labor?.jurusan_id || p.id_jurusan;
+        return pJurusanId ? String(pJurusanId) === myJurusanId : true;
+      });
+
+      const grouped: ItemInventory[] = filteredPerangkat.map((p: any) => {
+        const assets: ItemInstanceLocal[] = (instanceList || [])
+          .filter((inst: any) => Number(inst.id_perangkat) === Number(p.id))
+          .map((inst: any) => ({
+            id: Number(inst.id || inst.id_item_instance),
+            kode_asset: inst.kode_asset || inst.kode_unit || `Asset-${inst.id}`,
+            id_perangkat: Number(inst.id_perangkat),
+            status: inst.status || 'tersedia'
+          }));
+
         return {
-          id: p.id,
-          namaBarang: p.nama_perangkat,
+          id: Number(p.id),
+          namaBarang: p.nama_perangkat || p.nama || 'Tanpa Nama',
           assets: assets
         };
       });
@@ -143,7 +208,7 @@ export default function KabengLoansPage() {
     setErrorMessage('');
   };
 
-  // Handler Submit Otorisasi Peminjaman dengan Validasi 1 Bulan & Angka
+  // Handler Submit Otorisasi Peminjaman
   const handleSubmitPeminjaman = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage('');
@@ -161,7 +226,6 @@ export default function KabengLoansPage() {
       return;
     }
 
-    // Pengecekan Durasi Maksimal 1 Bulan (31 Hari)
     const startDate = new Date(tanggalPinjam);
     const endDate = new Date(tanggalKembali);
 
@@ -180,14 +244,23 @@ export default function KabengLoansPage() {
 
     try {
       setSubmitting(true);
+
+      const assetId = Number(selectedAsset.id);
+
+      if (!assetId || isNaN(assetId)) {
+        setErrorMessage('ID Asset tidak valid.');
+        setSubmitting(false);
+        return;
+      }
+
       await apiPeminjaman.create({
-        id_item_instance: selectedAsset.id,
+        id_item_instance: assetId,
         nama_peminjam: namaPeminjam.trim(),
         nomor_telepon: nomorTelepon.trim(),
         tanggal_pinjam: tanggalPinjam,
         tanggal_kembali: tanggalKembali,
         status: 'aktif',
-      });
+      } as any);
 
       handleCloseModal();
       fetchLoans();
@@ -204,7 +277,7 @@ export default function KabengLoansPage() {
     
     try {
       setUpdatingId(id);
-      await apiPeminjaman.update(id, { status: 'selesai' });
+      await apiPeminjaman.update(id, { status: 'selesai' } as any);
       fetchLoans();
     } catch (err: any) {
       alert(err.message || 'Gagal memperbarui status peminjaman');
@@ -216,17 +289,6 @@ export default function KabengLoansPage() {
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
     return dateStr.split('T')[0];
-  };
-
-  // Fungsi Pengecekan apakah Tanggal Selesai Sudah Tiba / Lewat
-  const isReturnDateReached = (dateStr?: string) => {
-    if (!dateStr) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // Riset jam ke 00:00 untuk komparasi tanggal murni
-    const returnDate = new Date(dateStr);
-    returnDate.setHours(0, 0, 0, 0);
-    
-    return today >= returnDate;
   };
 
   return (
@@ -283,14 +345,13 @@ export default function KabengLoansPage() {
                 ) : loans.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-8 text-center text-outline font-medium">
-                      Tidak ada peminjaman aktif saat ini.
+                      Tidak ada peminjaman aktif saat ini untuk jurusan ini.
                     </td>
                   </tr>
                 ) : (
                   loans.map((loan) => {
                     const namaBarang = loan.item_instance?.perangkat?.nama_perangkat || 'Tidak Diketahui';
                     const kodeAsset = loan.item_instance?.kode_asset || '-';
-                    const canBeCompleted = isReturnDateReached(loan.tanggal_kembali);
 
                     return (
                       <tr key={loan.id} className="hover:bg-surface-low/30 transition-colors">
@@ -304,29 +365,23 @@ export default function KabengLoansPage() {
                         <td className="p-5 text-center font-mono text-base text-outline tabular-nums whitespace-nowrap">{formatDate(loan.tanggal_kembali)}</td>
                         <td className="p-5 text-center whitespace-nowrap">
                           <button
+                            type="button"
                             onClick={() => handleMarkAsDone(loan.id)}
-                            disabled={!canBeCompleted || updatingId === loan.id}
-                            title={canBeCompleted ? "Klik untuk menyelesaikan peminjaman" : "Belum mencapai tanggal selesai"}
-                            className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold border transition-all ${
-                              canBeCompleted
-                                ? 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-emerald-100 hover:text-emerald-900 hover:border-emerald-400 cursor-pointer group'
-                                : 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-75'
-                            }`}
+                            disabled={updatingId === loan.id}
+                            title="Klik untuk menyelesaikan peminjaman"
+                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold border transition-all bg-blue-50 text-blue-800 border-blue-300 hover:bg-emerald-100 hover:text-emerald-900 hover:border-emerald-400 cursor-pointer group shadow-sm"
                           >
                             {updatingId === loan.id ? (
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            ) : canBeCompleted ? (
-                              <CheckCircle className="w-3.5 h-3.5 text-blue-600 group-hover:text-emerald-700" />
+                              <>
+                                <Loader2 className="w-3.5 h-3.5 animate-spin text-blue-600" />
+                                <span>Memproses...</span>
+                              </>
                             ) : (
-                              <Lock className="w-3.5 h-3.5 text-gray-400" />
+                              <>
+                                <CheckCircle className="w-3.5 h-3.5 text-blue-600 group-hover:text-emerald-700" />
+                                <span>Aktif (Tandai Selesai)</span>
+                              </>
                             )}
-                            <span>
-                              {updatingId === loan.id
-                                ? 'Memproses...'
-                                : canBeCompleted
-                                ? 'Aktif (Tandai Selesai)'
-                                : 'Belum Jatuh Tempo'}
-                            </span>
                           </button>
                         </td>
                       </tr>
@@ -346,7 +401,7 @@ export default function KabengLoansPage() {
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
-                className="bg-white w-full max-w-xl border border-surface-container-high rounded-xl shadow-xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150"
+                className="bg-white w-full max-w-xl border border-surface-container-high rounded-xl shadow-xl p-6 space-y-4"
               >
                 <div className="flex justify-between items-center border-b border-surface-container pb-2">
                   <h3 className="text-lg font-bold text-on-surface">Formulir Peminjaman Alat</h3>
@@ -362,7 +417,6 @@ export default function KabengLoansPage() {
                 )}
 
                 <form onSubmit={handleSubmitPeminjaman} className="space-y-4">
-                  {/* GRID: NAMA BARANG & KODE ASSET */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     
                     {/* 1. SEARCHABLE DROPDOWN: NAMA BARANG */}
@@ -489,7 +543,6 @@ export default function KabengLoansPage() {
                       />
                     </div>
                     
-                    {/* INPUT NOMOR TELEPON HANYA ANGKA */}
                     <div className="space-y-1">
                       <label className="text-xs font-bold text-outline uppercase tracking-wider">Nomor Ponsel Peminjam</label>
                       <input 

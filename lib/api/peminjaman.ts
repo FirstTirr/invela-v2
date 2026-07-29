@@ -39,7 +39,7 @@ export const apiPeminjaman = {
   // PUT: Update data peminjaman / status
   async update(id: number, payload: Partial<PeminjamanInput>) {
     const result = await fetchWithAuth(`/api/peminjaman/${id}`, {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify(payload),
     });
     return result.data;

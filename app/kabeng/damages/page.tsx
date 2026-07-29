@@ -2,9 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { Wrench, History, X, Coins, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { History, X, Coins, CheckCircle2, Loader2, AlertCircle, Trash2, Wrench } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { apiKerusakan, apiPerbaikan, Kerusakan, Perbaikan } from '@/lib/api';
+import { 
+  apiKerusakan, 
+  apiPerbaikan, 
+  apiRiwayatPerbaikan, 
+  Kerusakan, 
+  Perbaikan, 
+  RiwayatPerbaikan 
+} from '@/lib/api';
 
 export default function KabengDamagesPage() {
   const [isOpenRepairModal, setIsOpenRepairModal] = useState(false);
@@ -13,27 +20,45 @@ export default function KabengDamagesPage() {
 
   // State Data Backend
   const [damages, setDamages] = useState<Kerusakan[]>([]);
-  const [repairs, setRepairs] = useState<Perbaikan[]>([]);
+  const [historyList, setHistoryList] = useState<RiwayatPerbaikan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   // Form State untuk Modal Perbaikan
   const [deskripsiPerbaikan, setDeskripsiPerbaikan] = useState('');
   const [biayaPerbaikan, setBiayaPerbaikan] = useState('');
 
-  // Fetch data laporan kerusakan dan daftar perbaikan
+  // Fetch data laporan kerusakan & filter berdasarkan jurusan Kabeng yang login
   const fetchData = async () => {
     try {
       setIsLoading(true);
       setErrorMsg('');
-      const [dataKerusakan, dataPerbaikan] = await Promise.all([
-        apiKerusakan.getAll(),
-        apiPerbaikan.getAll(),
-      ]);
-      setDamages(dataKerusakan || []);
-      setRepairs(dataPerbaikan || []);
+
+      // Ambil user dari localStorage
+      const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      const currentUser = userStr ? JSON.parse(userStr) : null;
+      const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
+
+      const dataKerusakan = await apiKerusakan.getAll();
+
+      // Filtering Sesuai Jurusan
+      const filtered = (dataKerusakan || []).filter((report: any) => {
+        if (!myJurusanId) return true; // Jika tidak ada batasan jurusan, tampilkan semua
+        
+        // Cek id_jurusan dari perangkat / labor
+        const itemJurusanId = 
+          report.item_instance?.perangkat?.labor?.id_jurusan ||
+          report.item_instance?.perangkat?.labor?.jurusan_id ||
+          report.item_instance?.perangkat?.id_jurusan ||
+          report.user?.jurusan_id;
+
+        return itemJurusanId ? String(itemJurusanId) === myJurusanId : true;
+      });
+
+      setDamages(filtered);
     } catch (err: any) {
       console.error("Gagal mengambil data:", err);
       setErrorMsg(err.message || "Gagal memuat data kerusakan.");
@@ -45,6 +70,29 @@ export default function KabengDamagesPage() {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Handler Buka Modal Riwayat
+  const handleOpenHistoryModal = async (report: Kerusakan) => {
+    setSelectedReport(report);
+    setIsOpenHistoryModal(true);
+    setIsLoadingHistory(true);
+
+    const kodeAsset = (report as any).item_instance?.kode_asset;
+
+    try {
+      if (kodeAsset) {
+        const historyData = await apiRiwayatPerbaikan.getByKodeAsset(kodeAsset);
+        setHistoryList(historyData);
+      } else {
+        setHistoryList([]);
+      }
+    } catch (err) {
+      console.error("Gagal mengambil riwayat perbaikan:", err);
+      setHistoryList([]);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
 
   // Submit Perbaikan Baru
   const handleSaveRepair = async (e: React.FormEvent) => {
@@ -68,7 +116,6 @@ export default function KabengDamagesPage() {
       setDeskripsiPerbaikan('');
       setBiayaPerbaikan('');
       
-      // Refresh Data
       fetchData();
     } catch (err: any) {
       alert(err.message || "Gagal menyimpan data perbaikan.");
@@ -77,7 +124,23 @@ export default function KabengDamagesPage() {
     }
   };
 
-  // Helper Format Tanggal
+  // Handler Hapus Laporan Kerusakan
+  const handleDelete = async (id: number) => {
+    const confirmed = window.confirm("Apakah Anda yakin ingin menghapus laporan kerusakan ini?");
+    if (!confirmed) return;
+
+    try {
+      setDeletingId(id);
+      await apiKerusakan.delete(id);
+      alert("Laporan kerusakan berhasil dihapus!");
+      fetchData();
+    } catch (err: any) {
+      alert(err.message || "Gagal menghapus laporan kerusakan.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
     try {
@@ -93,7 +156,6 @@ export default function KabengDamagesPage() {
     }
   };
 
-  // Helper Format Rupiah
   const formatRupiah = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -101,11 +163,6 @@ export default function KabengDamagesPage() {
       maximumFractionDigits: 0,
     }).format(amount);
   };
-
-  // Filter riwayat perbaikan berdasarkan id_kerusakan yang dipilih
-  const filteredHistory = repairs.filter(
-    (rep) => rep.id_kerusakan === selectedReport?.id
-  );
 
   return (
     <PageAnimateWrapper>
@@ -181,12 +238,12 @@ export default function KabengDamagesPage() {
                   {damages.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="p-8 text-center text-outline font-bold">
-                        Belum ada laporan kerusakan yang tercatat.
+                        Belum ada laporan kerusakan yang tercatat untuk jurusan ini.
                       </td>
                     </tr>
                   ) : (
-                    damages.map((report) => {
-                      const itemInst = report.item_instance as any;
+                    damages.map((report: any) => {
+                      const itemInst = report.item_instance;
                       const namaBarang = itemInst?.perangkat?.nama_perangkat || itemInst?.perangkat?.nama || 'Perangkat';
                       const kodeUnit = itemInst?.kode_asset || itemInst?.kode_unit || `Unit #${report.id_item_instance}`;
                       const namaPelapor = report.user?.name || report.user?.username || `User #${report.id_user}`;
@@ -214,10 +271,10 @@ export default function KabengDamagesPage() {
                           <td className="p-5 text-center font-mono text-sm text-outline tabular-nums whitespace-nowrap">
                             {formatDate(report.created_at)}
                           </td>
-                          <td className="p-5 text-right space-x-3 whitespace-nowrap">
+                          <td className="p-5 text-right space-x-2 whitespace-nowrap">
                             <button 
-                              onClick={() => { setSelectedReport(report); setIsOpenHistoryModal(true); }}
-                              className="px-4 py-2 text-sm font-bold text-secondary hover:bg-surface-low border border-surface-container-high rounded-lg transition-all inline-flex items-center gap-2 cursor-pointer"
+                              onClick={() => handleOpenHistoryModal(report)}
+                              className="px-3 py-2 text-sm font-bold text-secondary hover:bg-surface-low border border-surface-container-high rounded-lg transition-all inline-flex items-center gap-1.5 cursor-pointer"
                             >
                               <History className="w-4 h-4" /> Riwayat
                             </button>
@@ -228,9 +285,21 @@ export default function KabengDamagesPage() {
                                 setBiayaPerbaikan('');
                                 setIsOpenRepairModal(true); 
                               }}
-                              className="px-4 py-2 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs"
+                              className="px-3 py-2 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
                             >
                               <Wrench className="w-4 h-4" /> Perbaikan
+                            </button>
+                            <button 
+                              onClick={() => handleDelete(report.id)}
+                              disabled={deletingId === report.id}
+                              className="p-2 text-sm font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-all inline-flex items-center justify-center cursor-pointer disabled:opacity-50"
+                              title="Hapus Laporan Kerusakan"
+                            >
+                              {deletingId === report.id ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="w-4 h-4" />
+                              )}
                             </button>
                           </td>
                         </tr>
@@ -317,14 +386,14 @@ export default function KabengDamagesPage() {
                 initial={{ opacity: 0, scale: 0.96 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.96 }}
-                className="bg-white w-full max-w-2xl border border-surface-container-high rounded-xl shadow-xl p-6 space-y-5"
+                className="bg-white w-full max-w-3xl border border-surface-container-high rounded-xl shadow-xl p-6 space-y-5"
               >
                 <div className="flex justify-between items-start border-b border-surface-container pb-3">
                   <div>
                     <h3 className="text-lg font-bold text-on-surface">Riwayat Perbaikan Unit</h3>
                     <p className="text-base text-error font-bold mt-1">
-                      {((selectedReport.item_instance as any)?.perangkat?.nama_perangkat || (selectedReport.item_instance as any)?.perangkat?.nama) || 'Perangkat'} (
-                      {selectedReport.item_instance?.kode_asset || `ID ${selectedReport.id_item_instance}`}
+                      {((selectedReport as any).item_instance?.perangkat?.nama_perangkat || (selectedReport as any).item_instance?.perangkat?.nama) || 'Perangkat'} (
+                      {(selectedReport as any).item_instance?.kode_asset || `ID ${selectedReport.id_item_instance}`}
                       )
                     </p>
                   </div>
@@ -338,42 +407,49 @@ export default function KabengDamagesPage() {
 
                 <div className="overflow-hidden border border-surface-container rounded-lg w-full">
                   <div className="overflow-x-auto w-full">
-                    <table className="w-full text-left text-base min-w-[500px]">
-                      <thead className="bg-surface-low font-bold text-on-surface border-b border-surface-container">
-                        <tr>
-                          <th className="p-4">Tanggal</th>
-                          <th className="p-4">Teknisi/Petugas</th>
-                          <th className="p-4">Detail Perbaikan</th>
-                          <th className="p-4 text-right">Biaya</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-surface-container text-on-surface font-semibold">
-                        {filteredHistory.length === 0 ? (
+                    {isLoadingHistory ? (
+                      <div className="py-12 text-center text-outline">
+                        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
+                        Memuat riwayat perbaikan...
+                      </div>
+                    ) : (
+                      <table className="w-full text-left text-base min-w-[600px]">
+                        <thead className="bg-surface-low font-bold text-on-surface border-b border-surface-container">
                           <tr>
-                            <td colSpan={4} className="p-6 text-center text-outline font-bold">
-                              Belum ada tindakan perbaikan terdokumentasi.
-                            </td>
+                            <th className="p-4">Tanggal</th>
+                            <th className="p-4">Teknisi</th>
+                            <th className="p-4">Deskripsi Perbaikan</th>
+                            <th className="p-4 text-right">Biaya</th>
                           </tr>
-                        ) : (
-                          filteredHistory.map((rep) => (
-                            <tr key={rep.id} className="hover:bg-surface-low/30">
-                              <td className="p-4 text-sm font-mono text-outline whitespace-nowrap">
-                                {formatDate(rep.created_at)}
-                              </td>
-                              <td className="p-4 text-sm font-bold text-on-surface whitespace-nowrap">
-                                {rep.user?.name || rep.user?.username || `User #${rep.id_user}`}
-                              </td>
-                              <td className="p-4 text-sm font-medium leading-normal">
-                                {rep.deskripsi_perbaikan}
-                              </td>
-                              <td className="p-4 text-sm font-bold text-right text-emerald-700 whitespace-nowrap">
-                                {formatRupiah(rep.biaya)}
+                        </thead>
+                        <tbody className="divide-y divide-surface-container text-on-surface font-semibold">
+                          {historyList.length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="p-6 text-center text-outline font-bold">
+                                Belum ada tindakan perbaikan terdokumentasi untuk unit ini.
                               </td>
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
+                          ) : (
+                            historyList.map((log) => (
+                              <tr key={log.id} className="hover:bg-surface-low/30">
+                                <td className="p-4 text-sm font-mono text-outline whitespace-nowrap">
+                                  {formatDate(log.tanggal_perbaikan)}
+                                </td>
+                                <td className="p-4 text-sm font-bold text-on-surface whitespace-nowrap">
+                                  {log.nama_teknisi}
+                                </td>
+                                <td className="p-4 text-sm font-medium leading-normal">
+                                  {log.deskripsi_perbaikan}
+                                </td>
+                                <td className="p-4 text-sm font-bold text-right text-emerald-700 whitespace-nowrap">
+                                  {formatRupiah(log.biaya)}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </div>
               </motion.div>

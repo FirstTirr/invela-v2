@@ -1,3 +1,4 @@
+// lib/api.ts
 // Export interface/type
 export type * from './api/kelas';
 export type * from './api/jurusan';
@@ -10,7 +11,8 @@ export type * from './api/peminjaman';
 export type * from './api/login';
 export type * from './api/laporan-kerusakan';
 export type * from './api/penggunaan';
-export type * from './api/perbaikan'; // 👈 Tambahkan ini
+export type * from './api/perbaikan';
+export type * from './api/riwayat-perbaikan'; // 👈 Tambahkan ini
 
 // Export objek API runtime
 export { apiKelas } from './api/kelas';
@@ -24,4 +26,5 @@ export { apiPeminjaman } from './api/peminjaman';
 export { apiAuth } from './api/login';
 export { apiKerusakan } from './api/laporan-kerusakan';
 export { apiPenggunaan } from './api/penggunaan';
-export { apiPerbaikan } from './api/perbaikan'; // 👈 Tambahkan ini
+export { apiPerbaikan } from './api/perbaikan';
+export { apiRiwayatPerbaikan } from './api/riwayat-perbaikan'; // 👈 Tambahkan ini

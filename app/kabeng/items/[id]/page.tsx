@@ -5,17 +5,15 @@ import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { ArrowLeft, Plus, Loader2, Trash2, History, ChevronLeft, ChevronRight, X, Wrench } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
-import { apiPerangkat, apiItemInstance, Perangkat, ItemInstance } from '@/lib/api';
+import { 
+  apiPerangkat, 
+  apiItemInstance, 
+  apiRiwayatPerbaikan, 
+  Perangkat, 
+  ItemInstance, 
+  RiwayatPerbaikan 
+} from '@/lib/api';
 import { incrementKodeAsset } from '@/lib/utils-asset';
-
-// Tipe Data Dummy / Real untuk Riwayat Perbaikan
-interface RiwayatPerbaikan {
-  id: number;
-  tanggal: string;
-  teknisi: string;
-  detail: string;
-  biaya: string;
-}
 
 export default function ItemInstancePage() {
   const router = useRouter();
@@ -26,6 +24,7 @@ export default function ItemInstancePage() {
   const [unitInstances, setUnitInstances] = useState<ItemInstance[]>([]);
   const [loading, setLoading] = useState(true);
   const [addingUnit, setAddingUnit] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // State Pagination
   const [currentPage, setCurrentPage] = useState(1);
@@ -101,38 +100,59 @@ export default function ItemInstancePage() {
     }
   };
 
+  // ✅ Format Alert Error Jelas & Rapi (Sesuai Screenshot)
   const handleDeleteUnit = async (id: number, kode: string) => {
-    if (!confirm(`Hapus unit ${kode}?`)) return;
+    if (!confirm(`Apakah Anda yakin ingin menghapus unit ${kode}?`)) return;
+    
     try {
+      setDeletingId(id);
       await apiItemInstance.delete(id);
+      alert(`Unit [${kode}] berhasil dihapus!`);
       await fetchInstances();
     } catch (err: any) {
-      alert(`Gagal menghapus unit: ${err.message}`);
+      console.error("Error deleting unit:", err);
+      
+      alert(
+        `Unit [${kode}] tidak dapat dihapus!\n\n` +
+        `Hapus terlebih dahulu data riwayat perbaikan atau laporan kerusakan terkait sebelum menghapus unit ini.`
+      );
+    } finally {
+      setDeletingId(null);
     }
   };
 
-  // Fungsi Buka Modal Riwayat Perbaikan
-  const handleOpenHistory = (unit: ItemInstance) => {
+  // Buka Modal Riwayat Perbaikan
+  const handleOpenHistory = async (unit: ItemInstance) => {
     setSelectedUnit(unit);
     setShowHistoryModal(true);
     setLoadingHistory(true);
 
-    // Simulasi Fetch Data Riwayat Perbaikan (Bisa dihubungkan ke Endpoint Laporan Kerusakan jika ada)
-    setTimeout(() => {
-      setHistoryList([
-        {
-          id: 1,
-          tanggal: "29 Jul 2026",
-          teknisi: "kabeng@smkn4pyk.com",
-          detail: `Perbaikan rutin & pembersihan komponen unit ${unit.kode_asset}`,
-          biaya: "Rp 30.000.000",
-        },
-      ]);
+    try {
+      const data = await apiRiwayatPerbaikan.getByKodeAsset(unit.kode_asset);
+      setHistoryList(data);
+    } catch (err) {
+      console.error("Gagal mengambil riwayat perbaikan:", err);
+      setHistoryList([]);
+    } finally {
       setLoadingHistory(false);
-    }, 400);
+    }
   };
 
   const namaPerangkat = basePerangkat?.nama_perangkat || (unitInstances[0] as any)?.perangkat?.nama_perangkat || 'Detail Perangkat';
+
+  // Helper Format Rupiah
+  const formatRupiah = (val: number) => {
+    return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+  };
+
+  // Helper Format Tanggal
+  const formatDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
 
   return (
     <PageAnimateWrapper>
@@ -224,10 +244,15 @@ export default function ItemInstancePage() {
                       {/* Tombol Hapus Unit */}
                       <button 
                         onClick={() => handleDeleteUnit(unit.id, unit.kode_asset)}
-                        className="p-2 text-outline hover:text-error hover:bg-error-container rounded-lg transition-colors cursor-pointer"
+                        disabled={deletingId === unit.id}
+                        className="p-2 text-outline hover:text-error hover:bg-error-container rounded-lg transition-colors cursor-pointer disabled:opacity-50"
                         title="Hapus Unit Ini"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {deletingId === unit.id ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-error" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </td>
@@ -236,7 +261,7 @@ export default function ItemInstancePage() {
             </tbody>
           </table>
 
-          {/* Pagination Bar (Per 10 Data) */}
+          {/* Pagination Bar */}
           {!loading && unitInstances.length > 0 && (
             <div className="px-6 py-4 bg-surface-low/50 border-t border-surface-container-high flex items-center justify-between">
               <span className="text-xs font-medium text-outline">
@@ -283,7 +308,7 @@ export default function ItemInstancePage() {
         {/* Modal Pop-up Riwayat Perbaikan */}
         {showHistoryModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
-            <div className="bg-white rounded-2xl border border-surface-container-high shadow-2xl w-full max-w-2xl overflow-hidden">
+            <div className="bg-white rounded-2xl border border-surface-container-high shadow-2xl w-full max-w-3xl overflow-hidden">
               {/* Header Modal */}
               <div className="p-6 border-b border-surface-container flex items-start justify-between">
                 <div>
@@ -315,12 +340,13 @@ export default function ItemInstancePage() {
                     Belum ada riwayat perbaikan terdaftar untuk unit ini.
                   </div>
                 ) : (
-                  <div className="border border-surface-container rounded-xl overflow-hidden">
+                  <div className="border border-surface-container rounded-xl overflow-hidden max-h-[60vh] overflow-y-auto">
                     <table className="w-full text-left border-collapse text-sm">
-                      <thead className="bg-surface-low border-b border-surface-container font-bold text-xs uppercase text-on-surface">
+                      <thead className="bg-surface-low border-b border-surface-container font-bold text-xs uppercase text-on-surface sticky top-0">
                         <tr>
                           <th className="p-3">Tanggal</th>
-                          <th className="p-3">Teknisi/Petugas</th>
+                          <th className="p-3">Teknisi</th>
+                          <th className="p-3">Detail Kerusakan</th>
                           <th className="p-3">Detail Perbaikan</th>
                           <th className="p-3 text-right">Biaya</th>
                         </tr>
@@ -329,16 +355,19 @@ export default function ItemInstancePage() {
                         {historyList.map((item) => (
                           <tr key={item.id} className="hover:bg-surface-low/30">
                             <td className="p-3 whitespace-nowrap text-xs font-semibold text-outline">
-                              {item.tanggal}
+                              {formatDate(item.tanggal_perbaikan)}
                             </td>
                             <td className="p-3 font-semibold text-on-surface">
-                              {item.teknisi}
+                              {item.nama_teknisi}
                             </td>
-                            <td className="p-3 text-xs text-outline">
-                              {item.detail}
+                            <td className="p-3 text-xs text-outline max-w-[150px] truncate" title={item.deskripsi_kerusakan}>
+                              {item.deskripsi_kerusakan}
+                            </td>
+                            <td className="p-3 text-xs text-outline max-w-[180px]" title={item.deskripsi_perbaikan}>
+                              {item.deskripsi_perbaikan}
                             </td>
                             <td className="p-3 text-right font-bold text-emerald-600 whitespace-nowrap">
-                              {item.biaya}
+                              {formatRupiah(item.biaya)}
                             </td>
                           </tr>
                         ))}

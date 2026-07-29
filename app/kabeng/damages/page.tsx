@@ -4,32 +4,38 @@ import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Wrench, History, X, Coins, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { apiKerusakan, Kerusakan } from '@/lib/api';
-
-interface RepairLog {
-  tanggal: string;
-  perbaikan: string;
-  biaya: number;
-}
+import { apiKerusakan, apiPerbaikan, Kerusakan, Perbaikan } from '@/lib/api';
 
 export default function KabengDamagesPage() {
   const [isOpenRepairModal, setIsOpenRepairModal] = useState(false);
   const [isOpenHistoryModal, setIsOpenHistoryModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState<Kerusakan | null>(null);
 
+  // State Data Backend
   const [damages, setDamages] = useState<Kerusakan[]>([]);
+  const [repairs, setRepairs] = useState<Perbaikan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // Fetch data laporan kerusakan dari Backend Go
-  const fetchDamages = async () => {
+  // Form State untuk Modal Perbaikan
+  const [deskripsiPerbaikan, setDeskripsiPerbaikan] = useState('');
+  const [biayaPerbaikan, setBiayaPerbaikan] = useState('');
+
+  // Fetch data laporan kerusakan dan daftar perbaikan
+  const fetchData = async () => {
     try {
       setIsLoading(true);
       setErrorMsg('');
-      const data = await apiKerusakan.getAll();
-      setDamages(data || []);
+      const [dataKerusakan, dataPerbaikan] = await Promise.all([
+        apiKerusakan.getAll(),
+        apiPerbaikan.getAll(),
+      ]);
+      setDamages(dataKerusakan || []);
+      setRepairs(dataPerbaikan || []);
     } catch (err: any) {
-      console.error("Gagal mengambil data kerusakan:", err);
+      console.error("Gagal mengambil data:", err);
       setErrorMsg(err.message || "Gagal memuat data kerusakan.");
     } finally {
       setIsLoading(false);
@@ -37,30 +43,83 @@ export default function KabengDamagesPage() {
   };
 
   useEffect(() => {
-    fetchDamages();
+    fetchData();
   }, []);
 
-  // Format Helper Tanggal
+  // Submit Perbaikan Baru
+  const handleSaveRepair = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedReport) return;
+    if (!deskripsiPerbaikan.trim()) {
+      alert("Deskripsi perbaikan wajib diisi.");
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+      await apiPerbaikan.create({
+        id_kerusakan: selectedReport.id,
+        deskripsi_perbaikan: deskripsiPerbaikan,
+        biaya: Number(biayaPerbaikan) || 0,
+      });
+
+      alert("Data perbaikan berhasil disimpan!");
+      setIsOpenRepairModal(false);
+      setDeskripsiPerbaikan('');
+      setBiayaPerbaikan('');
+      
+      // Refresh Data
+      fetchData();
+    } catch (err: any) {
+      alert(err.message || "Gagal menyimpan data perbaikan.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Helper Format Tanggal
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('id-ID', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return '-';
+      return new Intl.DateTimeFormat('id-ID', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+      }).format(date);
+    } catch {
+      return '-';
+    }
   };
+
+  // Helper Format Rupiah
+  const formatRupiah = (amount: number) => {
+    return new Intl.NumberFormat('id-ID', {
+      style: 'currency',
+      currency: 'IDR',
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Filter riwayat perbaikan berdasarkan id_kerusakan yang dipilih
+  const filteredHistory = repairs.filter(
+    (rep) => rep.id_kerusakan === selectedReport?.id
+  );
 
   return (
     <PageAnimateWrapper>
       <div className="space-y-8 font-sans antialiased tracking-tight">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-on-surface">Laporan Kerusakan & Perbaikan</h1>
-          <p className="text-base text-on-surface-variant mt-2 font-medium">Pusat kendali tindakan pemeliharaan aset laboratorium dan log pendanaan.</p>
+          <p className="text-base text-on-surface-variant mt-2 font-medium">
+            Pusat kendali tindakan pemeliharaan aset laboratorium dan log pendanaan.
+          </p>
         </div>
 
         {/* 2 Top Cost Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white border border-surface-container-high rounded-xl p-6 flex items-center justify-between shadow-sm">
+          <div className="bg-white border border-surface-container-high rounded-xl p-6 flex items-center justify-between shadow-xs">
             <div className="space-y-2">
               <p className="text-xs font-bold text-outline tracking-wider uppercase">Total Laporan Kerusakan</p>
               <p className="text-3xl sm:text-4xl font-black text-on-surface tracking-tight tabular-nums">
@@ -73,7 +132,7 @@ export default function KabengDamagesPage() {
             </div>
           </div>
 
-          <div className="bg-white border border-surface-container-high rounded-xl p-6 flex items-center justify-between shadow-sm">
+          <div className="bg-white border border-surface-container-high rounded-xl p-6 flex items-center justify-between shadow-xs">
             <div className="space-y-2">
               <p className="text-xs font-bold text-outline tracking-wider uppercase">Butuh Penanganan</p>
               <p className="text-3xl sm:text-4xl font-black text-red-600 tracking-tight tabular-nums">
@@ -88,7 +147,7 @@ export default function KabengDamagesPage() {
         </div>
 
         {/* Actionable Damages Table */}
-        <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-sm w-full">
+        <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-xs w-full">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-16 space-y-3">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -99,8 +158,8 @@ export default function KabengDamagesPage() {
               <AlertCircle className="w-10 h-10 text-error mx-auto" />
               <p className="text-base font-bold text-error">{errorMsg}</p>
               <button 
-                onClick={fetchDamages}
-                className="px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg shadow-sm hover:bg-primary-container transition-all"
+                onClick={fetchData}
+                className="px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg shadow-xs hover:bg-primary-container transition-all cursor-pointer"
               >
                 Coba Lagi
               </button>
@@ -163,8 +222,13 @@ export default function KabengDamagesPage() {
                               <History className="w-4 h-4" /> Riwayat
                             </button>
                             <button 
-                              onClick={() => { setSelectedReport(report); setIsOpenRepairModal(true); }}
-                              className="px-4 py-2 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg transition-all inline-flex items-center gap-2 cursor-pointer shadow-sm"
+                              onClick={() => { 
+                                setSelectedReport(report); 
+                                setDeskripsiPerbaikan('');
+                                setBiayaPerbaikan('');
+                                setIsOpenRepairModal(true); 
+                              }}
+                              className="px-4 py-2 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs"
                             >
                               <Wrench className="w-4 h-4" /> Perbaikan
                             </button>
@@ -191,22 +255,55 @@ export default function KabengDamagesPage() {
               >
                 <div className="flex justify-between items-center border-b border-surface-container pb-3">
                   <h3 className="text-lg font-bold text-on-surface">Input Perbaikan: #{selectedReport.id}</h3>
-                  <button onClick={() => setIsOpenRepairModal(false)} className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+                  <button 
+                    onClick={() => setIsOpenRepairModal(false)} 
+                    className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
-                <div className="space-y-4">
+                
+                <form onSubmit={handleSaveRepair} className="space-y-4">
                   <div className="space-y-1">
-                    <label className="text-xs font-bold text-outline uppercase tracking-wider">Tindakan/Apa Yang Diperbaiki</label>
-                    <textarea placeholder="Contoh: Penggantian mat stylus atau reparasi mainboard PC..." className="w-full px-4 py-3 border border-surface-container-high rounded-lg text-base text-on-surface bg-white focus:outline-none focus:border-primary h-28 resize-none font-medium"/>
+                    <label className="text-xs font-bold text-outline uppercase tracking-wider">Tindakan / Deskripsi Perbaikan</label>
+                    <textarea 
+                      placeholder="Contoh: Penggantian mainboard PC, kalibrasi instrumen, dll..." 
+                      value={deskripsiPerbaikan}
+                      onChange={(e) => setDeskripsiPerbaikan(e.target.value)}
+                      required
+                      className="w-full px-4 py-3 border border-surface-container-high rounded-lg text-base text-on-surface bg-white focus:outline-none focus:border-primary h-28 resize-none font-medium"
+                    />
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-outline uppercase tracking-wider">Total Biaya Perbaikan (Rp)</label>
-                    <input type="number" placeholder="Contoh: 300000" className="w-full px-4 py-3 border border-surface-container-high rounded-lg text-base text-on-surface bg-white focus:outline-none focus:border-primary font-semibold"/>
+                    <input 
+                      type="number" 
+                      min="0"
+                      placeholder="Contoh: 300000" 
+                      value={biayaPerbaikan}
+                      onChange={(e) => setBiayaPerbaikan(e.target.value)}
+                      className="w-full px-4 py-3 border border-surface-container-high rounded-lg text-base text-on-surface bg-white focus:outline-none focus:border-primary font-semibold"
+                    />
                   </div>
-                </div>
-                <div className="flex justify-end gap-3 pt-3 border-t border-surface-container">
-                  <button onClick={() => setIsOpenRepairModal(false)} className="px-5 py-2.5 text-sm font-bold text-secondary hover:bg-surface-low rounded-lg cursor-pointer">Batal</button>
-                  <button onClick={() => setIsOpenRepairModal(false)} className="px-6 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg cursor-pointer shadow-sm">Simpan Data</button>
-                </div>
+
+                  <div className="flex justify-end gap-3 pt-3 border-t border-surface-container">
+                    <button 
+                      type="button"
+                      onClick={() => setIsOpenRepairModal(false)} 
+                      className="px-5 py-2.5 text-sm font-bold text-secondary hover:bg-surface-low rounded-lg cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="px-6 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg cursor-pointer shadow-xs flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                      Simpan Data
+                    </button>
+                  </div>
+                </form>
               </motion.div>
             </div>
           )}
@@ -231,24 +328,50 @@ export default function KabengDamagesPage() {
                       )
                     </p>
                   </div>
-                  <button onClick={() => setIsOpenHistoryModal(false)} className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer"><X className="w-5 h-5" /></button>
+                  <button 
+                    onClick={() => setIsOpenHistoryModal(false)} 
+                    className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
+
                 <div className="overflow-hidden border border-surface-container rounded-lg w-full">
                   <div className="overflow-x-auto w-full">
                     <table className="w-full text-left text-base min-w-[500px]">
                       <thead className="bg-surface-low font-bold text-on-surface border-b border-surface-container">
                         <tr>
                           <th className="p-4">Tanggal</th>
+                          <th className="p-4">Teknisi/Petugas</th>
                           <th className="p-4">Detail Perbaikan</th>
                           <th className="p-4 text-right">Biaya</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-surface-container text-on-surface font-semibold">
-                        <tr>
-                          <td colSpan={3} className="p-6 text-center text-outline font-bold">
-                            Belum ada tindakan perbaikan terdokumentasi.
-                          </td>
-                        </tr>
+                        {filteredHistory.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="p-6 text-center text-outline font-bold">
+                              Belum ada tindakan perbaikan terdokumentasi.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredHistory.map((rep) => (
+                            <tr key={rep.id} className="hover:bg-surface-low/30">
+                              <td className="p-4 text-sm font-mono text-outline whitespace-nowrap">
+                                {formatDate(rep.created_at)}
+                              </td>
+                              <td className="p-4 text-sm font-bold text-on-surface whitespace-nowrap">
+                                {rep.user?.name || rep.user?.username || `User #${rep.id_user}`}
+                              </td>
+                              <td className="p-4 text-sm font-medium leading-normal">
+                                {rep.deskripsi_perbaikan}
+                              </td>
+                              <td className="p-4 text-sm font-bold text-right text-emerald-700 whitespace-nowrap">
+                                {formatRupiah(rep.biaya)}
+                              </td>
+                            </tr>
+                          ))
+                        )}
                       </tbody>
                     </table>
                   </div>

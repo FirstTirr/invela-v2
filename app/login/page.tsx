@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff, Lock, User, ArrowRight, ShieldCheck, Loader2 } from 'lucide-react';
+import { Eye, EyeOff, Lock, User, ArrowRight, ArrowLeft, ShieldCheck, Loader2 } from 'lucide-react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { apiAuth } from '@/lib/api';
 
@@ -82,9 +83,20 @@ export default function LoginPage() {
           <div className="absolute top-[-20%] right-[-20%] w-[500px] h-[500px] rounded-full bg-white/5 blur-3xl pointer-events-none" />
           <div className="absolute bottom-[-10%] left-[-10%] w-[350px] h-[350px] rounded-full bg-secondary/10 blur-2xl pointer-events-none" />
 
-          <div className="flex items-center gap-2 text-white/90">
-            <ShieldCheck className="w-5 h-5 text-white animate-pulse" />
-            <span className="text-xs font-bold tracking-widest uppercase">SMKN 4 Payakumbuh</span>
+          <div className="flex items-center justify-between z-10">
+            <div className="flex items-center gap-2 text-white/90">
+              <ShieldCheck className="w-5 h-5 text-white animate-pulse" />
+              <span className="text-xs font-bold tracking-widest uppercase">SMKN 4 Payakumbuh</span>
+            </div>
+            
+            {/* Tombol Beranda di Sisi Kiri (Desktop) */}
+            <Link 
+              href="/"
+              className="inline-flex items-center gap-2 text-xs font-semibold text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg backdrop-blur-sm transition-all"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              Beranda
+            </Link>
           </div>
 
           <div className="space-y-4 relative z-10">
@@ -103,8 +115,18 @@ export default function LoginPage() {
         </div>
 
         {/* SISI KANAN: FORM LOGIN UTAMA */}
-        <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 md:p-20 bg-white">
-          <div className="w-full max-w-[420px] space-y-8">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-12 md:p-20 bg-white relative">
+          
+          {/* TOMBOL KEMBALI KE LANDING PAGE (Sisi Kanan / Mobile & Tablet) */}
+          <Link
+            href="/"
+            className="absolute top-6 left-6 lg:left-8 flex items-center gap-2 text-xs font-bold text-outline hover:text-primary transition-colors py-2 px-3 rounded-xl hover:bg-slate-100"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Kembali ke Beranda</span>
+          </Link>
+
+          <div className="w-full max-w-[420px] space-y-8 mt-8 lg:mt-0">
             
             {/* LOGO DI ATAS FORM LOGIN */}
             <div className="flex flex-col items-center text-center space-y-3">

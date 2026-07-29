@@ -6,13 +6,14 @@ export function middleware(request: NextRequest) {
   const userRole = request.cookies.get('user_role')?.value;
   const { pathname } = request.nextUrl;
 
-  // 1. Jika user mengakses Root URL (/)
+  // 1. Jika user mengakses Root URL (/) - Landing Page
   if (pathname === '/') {
-    if (!token || !userRole) {
-      return NextResponse.redirect(new URL('/login', request.url));
+    // Jika SUDAH login, langsung arahkan ke dashboard role masing-masing
+    if (token && userRole) {
+      return NextResponse.redirect(new URL(`/${userRole}`, request.url));
     }
-    // Redirect langsung ke folder role user masing-masing
-    return NextResponse.redirect(new URL(`/${userRole}`, request.url));
+    // Jika BELUM login, izinkan melihat Landing Page (NextResponse.next)
+    return NextResponse.next();
   }
 
   // 2. Jika user mencoba mengakses /login padahal sudah login

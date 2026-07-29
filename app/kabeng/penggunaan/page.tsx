@@ -2,105 +2,87 @@
 
 import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { Search, MonitorCheck, UserCheck, Calendar, Filter, Loader2 } from 'lucide-react';
-import { apiLabor, Labor } from '@/lib/api';
-
-interface UsageLog {
-  id: string;
-  tanggal: string;
-  guruInput: {
-    username: string;
-    namaLengkap: string;
-    nip: string;
-  };
-  kelas: string;
-  laboratorium: string;
-  jamMulai: string;
-  jamSelesai: string;
-  status: 'Berlangsung' | 'Selesai';
-}
+import { Search, MonitorCheck, Calendar, Filter, Loader2, Trash2, RefreshCw } from 'lucide-react';
+import { apiLabor, apiPenggunaan, Labor, Penggunaan } from '@/lib/api';
 
 export default function PenggunaanLaborPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedLabor, setSelectedLabor] = useState('Semua');
-  
-  // State untuk data Laboratorium dari API backend
+
+  // State Data Backend
+  const [usageLogs, setUsageLogs] = useState<Penggunaan[]>([]);
+  const [loadingLogs, setLoadingLogs] = useState(true);
   const [laborList, setLaborList] = useState<Labor[]>([]);
-  const [loadingLabor, setLoadingLabor] = useState(false);
+  const [loadingLabor, setLoadingLabor] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Fetch daftar laboratorium dari Backend
+  // Fetch daftar laboratorium dan log penggunaan
+  const fetchData = async () => {
+    try {
+      setLoadingLogs(true);
+      setLoadingLabor(true);
+      setErrorMsg(null);
+
+      const [dataLogs, dataLabor] = await Promise.all([
+        apiPenggunaan.getAll(),
+        apiLabor.getAll(),
+      ]);
+
+      setUsageLogs(Array.isArray(dataLogs) ? dataLogs : []);
+      setLaborList(Array.isArray(dataLabor) ? dataLabor : []);
+    } catch (err: any) {
+      console.error('Gagal memuat data penggunaan:', err);
+      setErrorMsg(err.message || 'Gagal memuat log penggunaan laboratorium.');
+    } finally {
+      setLoadingLogs(false);
+      setLoadingLabor(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchLaboratorium = async () => {
-      try {
-        setLoadingLabor(true);
-        const data = await apiLabor.getAll();
-        setLaborList(data);
-      } catch (err) {
-        console.error('Gagal memuat data laboratorium:', err);
-      } finally {
-        setLoadingLabor(false);
-      }
-    };
-
-    fetchLaboratorium();
+    fetchData();
   }, []);
 
-  // Dummy Data Log Penggunaan Laboratorium
-  const usageLogs: UsageLog[] = [
-    {
-      id: 'LOG-001',
-      tanggal: '2026-07-22',
-      guruInput: {
-        username: 'hafidz_guru',
-        namaLengkap: 'Hafidz, S.Kom.',
-        nip: '19880215 201503 1 002',
-      },
-      kelas: 'XI PPLG 2',
-      laboratorium: 'Laboratorium RPL',
-      jamMulai: 'Jam Ke-1',
-      jamSelesai: 'Jam Ke-4',
-      status: 'Berlangsung',
-    },
-    {
-      id: 'LOG-002',
-      tanggal: '2026-07-22',
-      guruInput: {
-        username: 'andi_dkv',
-        namaLengkap: 'Andi Wijaya, S.Pd.',
-        nip: '19910510 201902 1 005',
-      },
-      kelas: 'XII DKV 1',
-      laboratorium: 'Laboratorium DKV',
-      jamMulai: 'Jam Ke-5',
-      jamSelesai: 'Jam Ke-8',
-      status: 'Selesai',
-    },
-    {
-      id: 'LOG-003',
-      tanggal: '2026-07-21',
-      guruInput: {
-        username: 'budi_tkj',
-        namaLengkap: 'Budi Santoso, M.T.',
-        nip: '19850101 201001 1 001',
-      },
-      kelas: 'X TJKT 3',
-      laboratorium: 'Laboratorium TKJ',
-      jamMulai: 'Jam Ke-2',
-      jamSelesai: 'Jam Ke-6',
-      status: 'Selesai',
-    },
-  ];
+  const handleDelete = async (id: number) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus log penggunaan ini?')) return;
+    try {
+      await apiPenggunaan.delete(id);
+      setUsageLogs((prev) => prev.filter((item) => item.id !== id));
+      alert('Log penggunaan berhasil dihapus.');
+    } catch (err: any) {
+      alert(err.message || 'Gagal menghapus log penggunaan');
+    }
+  };
+
+  // Helper Format Tanggal yang Aman
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return '-';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '-';
+      return new Intl.DateTimeFormat('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      }).format(date);
+    } catch {
+      return '-';
+    }
+  };
 
   // Filtering Logic
   const filteredLogs = usageLogs.filter((log) => {
+    const namaKelas = log.kelas?.kelas || '';
+    const namaLabor = log.labor?.labor || '';
+    const namaGuru = log.nama_pengguna || '';
+
     const matchesSearch =
-      log.kelas.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.guruInput.namaLengkap.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.guruInput.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      log.laboratorium.toLowerCase().includes(searchQuery.toLowerCase());
+      namaKelas.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      namaGuru.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      namaLabor.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesLabor =
-      selectedLabor === 'Semua' || log.laboratorium.toLowerCase() === selectedLabor.toLowerCase();
+      selectedLabor === 'Semua' || namaLabor.toLowerCase() === selectedLabor.toLowerCase();
 
     return matchesSearch && matchesLabor;
   });
@@ -116,6 +98,14 @@ export default function PenggunaanLaborPage() {
               Daftar rekapitulasi penggunaan ruang praktikum yang telah diinputkan oleh tenaga pendidik/guru.
             </p>
           </div>
+          <button
+            onClick={fetchData}
+            disabled={loadingLogs}
+            className="self-start sm:self-auto flex items-center gap-2 px-4 py-2 text-sm font-semibold text-primary bg-primary/10 hover:bg-primary/20 rounded-xl transition-colors disabled:opacity-50"
+          >
+            <RefreshCw className={`w-4 h-4 ${loadingLogs ? 'animate-spin' : ''}`} />
+            Refresh Data
+          </button>
         </div>
 
         {/* Filters & Search Bar */}
@@ -133,8 +123,6 @@ export default function PenggunaanLaborPage() {
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <Filter className="w-4 h-4 text-outline shrink-0" />
-            
-            {/* Dynamic Dropdown Laboratorium dari Backend API */}
             <select
               value={selectedLabor}
               onChange={(e) => setSelectedLabor(e.target.value)}
@@ -142,21 +130,16 @@ export default function PenggunaanLaborPage() {
               className="w-full sm:w-auto px-3 py-2 text-sm border border-surface-container rounded-lg focus:outline-none focus:border-primary bg-white font-medium text-on-surface disabled:bg-surface-low cursor-pointer"
             >
               <option value="Semua">Semua Laboratorium</option>
-              {loadingLabor ? (
-                <option disabled>Memuat laboratorium...</option>
-              ) : (
-                laborList.map((item) => (
-                  <option key={item.id} value={item.labor}>
-                    {item.labor}
-                  </option>
-                ))
-              )}
+              {laborList.map((item) => (
+                <option key={item.id} value={item.labor}>
+                  {item.labor}
+                </option>
+              ))}
             </select>
-            {loadingLabor && <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />}
           </div>
         </div>
 
-        {/* Tabel 1: Rekap Log Penggunaan Laboratorium */}
+        {/* Tabel Rekap Log */}
         <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-xs w-full space-y-3">
           <div className="px-5 pt-5 flex items-center justify-between">
             <h2 className="text-lg font-bold text-on-surface flex items-center gap-2">
@@ -177,11 +160,24 @@ export default function PenggunaanLaborPage() {
                   <th className="p-4 text-xs font-bold text-on-surface tracking-wide uppercase">Laboratorium</th>
                   <th className="p-4 text-xs font-bold text-on-surface tracking-wide uppercase text-center">Durasi Jam Pelajaran</th>
                   <th className="p-4 text-xs font-bold text-on-surface tracking-wide uppercase">Guru Penginput</th>
-                  <th className="p-4 text-xs font-bold text-on-surface tracking-wide uppercase text-right">Status</th>
+                  <th className="p-4 text-xs font-bold text-on-surface tracking-wide uppercase text-right">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container text-on-surface font-semibold">
-                {filteredLogs.length === 0 ? (
+                {loadingLogs ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-outline">
+                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
+                      Memuat log penggunaan...
+                    </td>
+                  </tr>
+                ) : errorMsg ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-red-600 font-medium">
+                      {errorMsg}
+                    </td>
+                  </tr>
+                ) : filteredLogs.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-8 text-center text-outline font-medium">
                       Tidak ada log penggunaan laboratorium yang sesuai.
@@ -192,40 +188,38 @@ export default function PenggunaanLaborPage() {
                     <tr key={log.id} className="hover:bg-surface-low/30 transition-colors">
                       <td className="p-4 whitespace-nowrap">
                         <div className="text-sm font-bold text-on-surface flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-outline" /> {log.tanggal}
+                          <Calendar className="w-3.5 h-3.5 text-outline" />{' '}
+                          {formatDate(log.created_at)}
                         </div>
-                        <span className="text-xs font-mono text-outline font-semibold">{log.id}</span>
+                        <span className="text-xs font-mono text-outline font-semibold">LOG-{log.id}</span>
                       </td>
 
                       <td className="p-4 text-base font-bold text-primary whitespace-nowrap">
-                        {log.kelas}
+                        {log.kelas?.kelas || '-'}
                       </td>
 
                       <td className="p-4 text-sm font-medium text-on-surface-variant max-w-[240px] truncate">
-                        {log.laboratorium}
+                        {log.labor?.labor || '-'}
                       </td>
 
                       <td className="p-4 text-center whitespace-nowrap">
                         <span className="inline-flex items-center gap-1 px-3 py-1 bg-surface-low rounded-lg text-xs font-bold text-on-surface border border-surface-container">
-                          {log.jamMulai} s/d {log.jamSelesai}
+                          Jam Ke-{log.jam_pelajaran_mulai} s/d Ke-{log.jam_pelajaran_selesai}
                         </span>
                       </td>
 
                       <td className="p-4 whitespace-nowrap">
-                        <div className="text-sm font-bold text-on-surface">{log.guruInput.namaLengkap}</div>
-                        <div className="text-xs font-mono text-outline">@{log.guruInput.username}</div>
+                        <div className="text-sm font-bold text-on-surface">{log.nama_pengguna || '-'}</div>
                       </td>
 
                       <td className="p-4 text-right whitespace-nowrap">
-                        <span
-                          className={`inline-block px-3 py-1 rounded-md text-xs font-bold border ${
-                            log.status === 'Berlangsung'
-                              ? 'bg-blue-100 text-blue-900 border-blue-300'
-                              : 'bg-emerald-100 text-emerald-900 border-emerald-300'
-                          }`}
+                        <button
+                          onClick={() => handleDelete(log.id)}
+                          className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
+                          title="Hapus Log"
                         >
-                          {log.status}
-                        </span>
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   ))

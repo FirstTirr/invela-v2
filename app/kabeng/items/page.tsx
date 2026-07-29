@@ -693,9 +693,8 @@ export default function KabengItemsPage() {
         {/* Export PDF Modal */}
         {isOpenPdfModal && (
           <ExportPdfModal 
-            isOpen={isOpenPdfModal} 
-            onClose={() => setIsOpenPdfModal(false)} 
-          />
+            isOpen={isOpenPdfModal}
+            onClose={() => setIsOpenPdfModal(false)} laborList={[]} displayItems={[]}          />
         )}
       </div>
     </PageAnimateWrapper>

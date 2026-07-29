@@ -3,10 +3,19 @@
 
 import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { ArrowLeft, Plus, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, Trash2, History, ChevronLeft, ChevronRight, X, Wrench } from 'lucide-react';
 import { useRouter, useParams } from 'next/navigation';
 import { apiPerangkat, apiItemInstance, Perangkat, ItemInstance } from '@/lib/api';
 import { incrementKodeAsset } from '@/lib/utils-asset';
+
+// Tipe Data Dummy / Real untuk Riwayat Perbaikan
+interface RiwayatPerbaikan {
+  id: number;
+  tanggal: string;
+  teknisi: string;
+  detail: string;
+  biaya: string;
+}
 
 export default function ItemInstancePage() {
   const router = useRouter();
@@ -18,11 +27,20 @@ export default function ItemInstancePage() {
   const [loading, setLoading] = useState(true);
   const [addingUnit, setAddingUnit] = useState(false);
 
+  // State Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
+
+  // State Pop-up Modal Riwayat
+  const [selectedUnit, setSelectedUnit] = useState<ItemInstance | null>(null);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [historyList, setHistoryList] = useState<RiwayatPerbaikan[]>([]);
+
   const fetchInstances = async () => {
     try {
       setLoading(true);
       
-      // Fetch detail induk Perangkat & seluruh item-instance secara bersamaan
       const [target, allInstances] = await Promise.all([
         apiPerangkat.getById(itemId),
         apiItemInstance.getAll()
@@ -30,7 +48,6 @@ export default function ItemInstancePage() {
 
       setBasePerangkat(target);
 
-      // Filter unit yang id_perangkat nya sesuai
       const filtered = allInstances.filter(
         item => Number(item.id_perangkat) === itemId
       );
@@ -47,20 +64,22 @@ export default function ItemInstancePage() {
     if (itemId) fetchInstances();
   }, [itemId]);
 
+  // Hitung Data Pagination
+  const totalPages = Math.ceil(unitInstances.length / itemsPerPage) || 1;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedUnits = unitInstances.slice(startIndex, startIndex + itemsPerPage);
+
   const handleAddQuickUnit = async () => {
     if (!basePerangkat) return;
 
     try {
       setAddingUnit(true);
-      
       let nextKodeAsset = 'AST-001';
 
       if (unitInstances.length > 0) {
-        // Cari kode_asset dengan angka terbesar
         const highestCode = unitInstances.reduce((maxCode, current) => {
           const currentNum = parseInt(current.kode_asset.replace(/\D/g, ''), 10) || 0;
           const maxNum = parseInt(maxCode.replace(/\D/g, ''), 10) || 0;
-          
           return currentNum > maxNum ? current.kode_asset : maxCode;
         }, unitInstances[0].kode_asset);
 
@@ -92,6 +111,29 @@ export default function ItemInstancePage() {
     }
   };
 
+  // Fungsi Buka Modal Riwayat Perbaikan
+  const handleOpenHistory = (unit: ItemInstance) => {
+    setSelectedUnit(unit);
+    setShowHistoryModal(true);
+    setLoadingHistory(true);
+
+    // Simulasi Fetch Data Riwayat Perbaikan (Bisa dihubungkan ke Endpoint Laporan Kerusakan jika ada)
+    setTimeout(() => {
+      setHistoryList([
+        {
+          id: 1,
+          tanggal: "29 Jul 2026",
+          teknisi: "kabeng@smkn4pyk.com",
+          detail: `Perbaikan rutin & pembersihan komponen unit ${unit.kode_asset}`,
+          biaya: "Rp 30.000.000",
+        },
+      ]);
+      setLoadingHistory(false);
+    }, 400);
+  };
+
+  const namaPerangkat = basePerangkat?.nama_perangkat || (unitInstances[0] as any)?.perangkat?.nama_perangkat || 'Detail Perangkat';
+
   return (
     <PageAnimateWrapper>
       <div className="space-y-6 font-sans antialiased tracking-tight">
@@ -100,13 +142,13 @@ export default function ItemInstancePage() {
           <div className="flex items-center gap-3">
             <button 
               onClick={() => router.push('/kabeng/items')}
-              className="p-2 rounded-lg border border-surface-container hover:bg-surface-low transition-colors cursor-pointer"
+              className="p-2 rounded-lg border border-surface-container hover:bg-surface-low transition-colors cursor-pointer text-on-surface"
             >
-              <ArrowLeft className="w-5 h-5 text-on-surface" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
             <div>
               <h1 className="text-2xl font-bold text-on-surface">
-                {loading ? 'Memuat Details...' : (basePerangkat?.nama_perangkat || unitInstances[0]?.perangkat?.nama_perangkat)}
+                {loading ? 'Memuat Details...' : namaPerangkat}
               </h1>
               <p className="text-sm text-outline">
                 Daftar unit instance & penomoran Kode Asset aktif ({unitInstances.length} Unit)
@@ -117,7 +159,7 @@ export default function ItemInstancePage() {
           <button 
             disabled={addingUnit || loading}
             onClick={handleAddQuickUnit}
-            className="px-4 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
+            className="px-4 py-2.5 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50 transition-all"
           >
             {addingUnit ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
             Tambah Unit Baru (+1)
@@ -149,9 +191,11 @@ export default function ItemInstancePage() {
                     Belum ada unit fisik registered untuk perangkat ini. Klik &quot;Tambah Unit Baru&quot; di atas.
                   </td>
                 </tr>
-              ) : unitInstances.map((unit, index) => (
-                <tr key={unit.id} className="hover:bg-surface-low/30">
-                  <td className="p-4 text-sm font-mono text-outline">{index + 1}</td>
+              ) : paginatedUnits.map((unit, index) => (
+                <tr key={unit.id} className="hover:bg-surface-low/30 transition-colors">
+                  <td className="p-4 text-sm font-mono text-outline">
+                    {startIndex + index + 1}
+                  </td>
                   <td className="p-4 font-mono text-base font-bold text-primary">
                     {unit.kode_asset}
                   </td>
@@ -166,19 +210,146 @@ export default function ItemInstancePage() {
                     </span>
                   </td>
                   <td className="p-4 text-right">
-                    <button 
-                      onClick={() => handleDeleteUnit(unit.id, unit.kode_asset)}
-                      className="p-2 text-outline hover:text-error hover:bg-error-container rounded-lg transition-colors cursor-pointer"
-                      title="Hapus Unit Ini"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                    <div className="flex items-center justify-end gap-1">
+                      {/* Tombol Riwayat Pop-up */}
+                      <button 
+                        onClick={() => handleOpenHistory(unit)}
+                        className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors cursor-pointer flex items-center gap-1.5 text-xs font-bold"
+                        title="Lihat Riwayat Perbaikan"
+                      >
+                        <History className="w-4 h-4" />
+                        <span className="hidden sm:inline">Riwayat</span>
+                      </button>
+
+                      {/* Tombol Hapus Unit */}
+                      <button 
+                        onClick={() => handleDeleteUnit(unit.id, unit.kode_asset)}
+                        className="p-2 text-outline hover:text-error hover:bg-error-container rounded-lg transition-colors cursor-pointer"
+                        title="Hapus Unit Ini"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+
+          {/* Pagination Bar (Per 10 Data) */}
+          {!loading && unitInstances.length > 0 && (
+            <div className="px-6 py-4 bg-surface-low/50 border-t border-surface-container-high flex items-center justify-between">
+              <span className="text-xs font-medium text-outline">
+                Menampilkan <span className="font-bold text-on-surface">{startIndex + 1}</span> - <span className="font-bold text-on-surface">{Math.min(startIndex + itemsPerPage, unitInstances.length)}</span> dari <span className="font-bold text-on-surface">{unitInstances.length}</span> Unit
+              </span>
+
+              <div className="flex items-center gap-2">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  className="p-2 text-xs font-semibold rounded-lg border border-surface-container hover:bg-surface-low disabled:opacity-40 disabled:hover:bg-transparent cursor-pointer transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`w-8 h-8 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                        currentPage === page
+                          ? 'bg-primary text-white'
+                          : 'hover:bg-surface-low text-on-surface border border-surface-container'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  className="p-2 text-xs font-semibold rounded-lg border border-surface-container hover:bg-surface-low disabled:opacity-40 disabled:hover:bg-transparent cursor-pointer transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Modal Pop-up Riwayat Perbaikan */}
+        {showHistoryModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl border border-surface-container-high shadow-2xl w-full max-w-2xl overflow-hidden">
+              {/* Header Modal */}
+              <div className="p-6 border-b border-surface-container flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-on-surface">
+                    Riwayat Perbaikan Unit
+                  </h3>
+                  <p className="text-sm font-semibold text-error">
+                    {namaPerangkat} ({selectedUnit?.kode_asset})
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowHistoryModal(false)}
+                  className="p-1.5 text-outline hover:text-on-surface hover:bg-surface-low rounded-lg transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Content Modal */}
+              <div className="p-6">
+                {loadingHistory ? (
+                  <div className="py-12 text-center text-outline">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
+                    Memuat riwayat perbaikan...
+                  </div>
+                ) : historyList.length === 0 ? (
+                  <div className="py-12 text-center text-outline font-medium">
+                    <Wrench className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                    Belum ada riwayat perbaikan terdaftar untuk unit ini.
+                  </div>
+                ) : (
+                  <div className="border border-surface-container rounded-xl overflow-hidden">
+                    <table className="w-full text-left border-collapse text-sm">
+                      <thead className="bg-surface-low border-b border-surface-container font-bold text-xs uppercase text-on-surface">
+                        <tr>
+                          <th className="p-3">Tanggal</th>
+                          <th className="p-3">Teknisi/Petugas</th>
+                          <th className="p-3">Detail Perbaikan</th>
+                          <th className="p-3 text-right">Biaya</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-surface-container font-medium text-slate-700">
+                        {historyList.map((item) => (
+                          <tr key={item.id} className="hover:bg-surface-low/30">
+                            <td className="p-3 whitespace-nowrap text-xs font-semibold text-outline">
+                              {item.tanggal}
+                            </td>
+                            <td className="p-3 font-semibold text-on-surface">
+                              {item.teknisi}
+                            </td>
+                            <td className="p-3 text-xs text-outline">
+                              {item.detail}
+                            </td>
+                            <td className="p-3 text-right font-bold text-emerald-600 whitespace-nowrap">
+                              {item.biaya}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </PageAnimateWrapper>
   );

@@ -8,7 +8,9 @@ export type * from './api/perangkat';
 export type * from './api/item-instance';
 export type * from './api/peminjaman';
 export type * from './api/login';
-export type * from './api/laporan-kerusakan'; // 👈 Tambahan baru
+export type * from './api/laporan-kerusakan';
+export type * from './api/penggunaan';
+export type * from './api/perbaikan'; // 👈 Tambahkan ini
 
 // Export objek API runtime
 export { apiKelas } from './api/kelas';
@@ -20,4 +22,6 @@ export { apiPerangkat } from './api/perangkat';
 export { apiItemInstance } from './api/item-instance';
 export { apiPeminjaman } from './api/peminjaman';
 export { apiAuth } from './api/login';
-export { apiKerusakan } from './api/laporan-kerusakan'; // 👈 Tambahan baru
+export { apiKerusakan } from './api/laporan-kerusakan';
+export { apiPenggunaan } from './api/penggunaan';
+export { apiPerbaikan } from './api/perbaikan'; // 👈 Tambahkan ini

@@ -1,102 +1,286 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { Users, School, GraduationCap, Tags, ArrowUpRight, LayoutDashboard, Settings } from 'lucide-react';
+import { Users, Building2, GraduationCap, Tags, Loader2, TrendingUp } from 'lucide-react';
+import Link from 'next/link';
+import * as API from '@/lib/api';
 
-export default function AdminDashboard() {
-  const stats = [
-    { title: 'Total User Terdaftar', value: '14', unit: 'Akun', icon: Users, desc: 'Teknisi, Kabeng & Kaprog' },
-    { title: 'Infrastruktur Labor', value: '6', unit: 'Ruangan', icon: School, desc: 'Aktif digunakan pratikum' },
-    { title: 'Program Keahlian', value: '3', unit: 'Jurusan', icon: GraduationCap, desc: 'Terintegrasi sistem' },
-    { title: 'Kategori Inventaris', value: '8', unit: 'Jenis', icon: Tags, desc: 'Logistik klaster barang' },
+// Import Recharts
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
+
+export default function AdminDashboardOverview() {
+  const [loading, setLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+  const [stats, setStats] = useState({
+    totalUser: 0,
+    totalLabor: 0,
+    totalJurusan: 0,
+    totalKategori: 0,
+  });
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  const fetchAdminStats = async () => {
+    try {
+      setLoading(true);
+
+      // Cek variasi nama export untuk API
+      const userApi = (API as any).apiUser || (API as any).apiUsers;
+      const laborApi = (API as any).apiLabor;
+      const jurusanApi = (API as any).apiJurusan;
+      const kategoriApi = (API as any).apiKategori;
+
+      const [usersData, laborData, jurusanData, kategoriData] = await Promise.all([
+        userApi?.getAll ? userApi.getAll().catch(() => []) : Promise.resolve([]),
+        laborApi?.getAll ? laborApi.getAll().catch(() => []) : Promise.resolve([]),
+        jurusanApi?.getAll ? jurusanApi.getAll().catch(() => []) : Promise.resolve([]),
+        kategoriApi?.getAll ? kategoriApi.getAll().catch(() => []) : Promise.resolve([])
+      ]);
+
+      setStats({
+        totalUser: Array.isArray(usersData) ? usersData.length : 0,
+        totalLabor: Array.isArray(laborData) ? laborData.length : 0,
+        totalJurusan: Array.isArray(jurusanData) ? jurusanData.length : 0,
+        totalKategori: Array.isArray(kategoriData) ? kategoriData.length : 0,
+      });
+    } catch (err) {
+      console.error("Gagal memuat statistik admin:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAdminStats();
+  }, []);
+
+  // Data ringkasan visualisasi grafik berdasarkan status master data
+  const chartData = [
+    { name: 'User', total: stats.totalUser },
+    { name: 'Labor', total: stats.totalLabor },
+    { name: 'Jurusan', total: stats.totalJurusan },
+    { name: 'Kategori', total: stats.totalKategori },
   ];
 
   return (
     <PageAnimateWrapper>
       <div className="space-y-8 font-sans antialiased tracking-tight">
-        
-        {/* Welcome Banner / Header */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between border-b border-surface-container pb-6">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-on-surface">
-              Overview Control Center
-            </h1>
-            <p className="text-base text-on-surface-variant mt-2 font-medium">
-              Sistem manajemen terpusat untuk data labor, otentikasi entitas, dan konfigurasi master data sekolah.
+        {/* Header */}
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-on-surface">Overview Control Center</h1>
+          <p className="text-base text-on-surface-variant mt-2 font-medium">
+            Sistem manajemen terpusat untuk data labor, otentikasi entitas, dan konfigurasi master data sekolah.
+          </p>
+        </div>
+
+        {/* 4 Stat Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          
+          {/* Card 1: Total User */}
+          <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-outline tracking-wider uppercase">Total User Terdaftar</p>
+                {loading ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-primary mt-2" />
+                ) : (
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-4xl font-black text-on-surface tabular-nums">{stats.totalUser}</span>
+                    <span className="text-sm font-semibold text-outline">Akun</span>
+                  </div>
+                )}
+              </div>
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                <Users className="w-6 h-6" />
+              </div>
+            </div>
+            <p className="text-xs font-medium text-outline border-t border-surface-container pt-3">
+              Teknisi, Kabeng & Kaprog
             </p>
           </div>
-        </div>
 
-        {/* Modern Dashboard Grid Layout - Teks Diperbesar & Padding Lega */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {stats.map((stat, idx) => {
-            const Icon = stat.icon;
-            return (
-              <div 
-                key={idx} 
-                className="bg-white border border-surface-container-high rounded-xl p-6 flex flex-col justify-between hover:border-primary/40 hover:shadow-md transition-all duration-200 group"
-              >
-                <div className="flex items-start justify-between">
-                  <div className="space-y-2">
-                    <p className="text-xs font-bold text-outline tracking-wider uppercase">
-                      {stat.title}
-                    </p>
-                    <div className="flex items-baseline gap-2 pt-1">
-                      <span className="text-4xl font-black tabular-nums text-on-surface tracking-tight">
-                        {stat.value}
-                      </span>
-                      <span className="text-sm font-bold text-outline">
-                        {stat.unit}
-                      </span>
-                    </div>
+          {/* Card 2: Labor */}
+          <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-outline tracking-wider uppercase">Infrastruktur Labor</p>
+                {loading ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-primary mt-2" />
+                ) : (
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-4xl font-black text-on-surface tabular-nums">{stats.totalLabor}</span>
+                    <span className="text-sm font-semibold text-outline">Ruangan</span>
                   </div>
-                  {/* Container Icon Gede & Elegan */}
-                  <div className="w-12 h-12 rounded-xl bg-secondary-container flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors duration-300 shadow-sm">
-                    <Icon className="w-5 h-5" />
-                  </div>
-                </div>
-                
-                <div className="border-t border-surface-container mt-5 pt-4 flex items-center justify-between text-sm font-medium text-on-surface-variant">
-                  <span>{stat.desc}</span>
-                  <ArrowUpRight className="w-4 h-4 text-primary opacity-0 group-hover:opacity-100 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
-                </div>
+                )}
               </div>
-            );
-          })}
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                <Building2 className="w-6 h-6" />
+              </div>
+            </div>
+            <p className="text-xs font-medium text-outline border-t border-surface-container pt-3">
+              Aktif digunakan praktikum
+            </p>
+          </div>
+
+          {/* Card 3: Jurusan */}
+          <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-outline tracking-wider uppercase">Program Keahlian</p>
+                {loading ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-primary mt-2" />
+                ) : (
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-4xl font-black text-on-surface tabular-nums">{stats.totalJurusan}</span>
+                    <span className="text-sm font-semibold text-outline">Jurusan</span>
+                  </div>
+                )}
+              </div>
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                <GraduationCap className="w-6 h-6" />
+              </div>
+            </div>
+            <p className="text-xs font-medium text-outline border-t border-surface-container pt-3">
+              Terintegrasi sistem
+            </p>
+          </div>
+
+          {/* Card 4: Kategori */}
+          <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold text-outline tracking-wider uppercase">Kategori Inventaris</p>
+                {loading ? (
+                  <Loader2 className="w-6 h-6 animate-spin text-primary mt-2" />
+                ) : (
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-4xl font-black text-on-surface tabular-nums">{stats.totalKategori}</span>
+                    <span className="text-sm font-semibold text-outline">Jenis</span>
+                  </div>
+                )}
+              </div>
+              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                <Tags className="w-6 h-6" />
+              </div>
+            </div>
+            <p className="text-xs font-medium text-outline border-t border-surface-container pt-3">
+              Logistik klaster barang
+            </p>
+          </div>
+
         </div>
 
-        {/* Area Visualisasi & Pintasan Rujukan */}
+        {/* Lower Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
-          {/* Main Placeholder Chart Log */}
-          <div className="lg:col-span-2 bg-white border border-surface-container-high rounded-xl p-6 min-h-[280px] flex flex-col justify-center items-center text-center shadow-sm">
-            <div className="w-14 h-14 rounded-full bg-surface-low flex items-center justify-center text-primary mb-4 border border-surface-container">
-              <LayoutDashboard className="w-6 h-6" />
+          {/* Grafik Recharts Card */}
+          <div className="lg:col-span-2 p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4">
+            <div className="flex items-center justify-between border-b border-surface-container pb-3">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-blue-600" />
+                <h3 className="text-base font-bold text-on-surface">Distribusi & Visualisasi Master Data</h3>
+              </div>
+              <span className="text-xs font-semibold text-outline bg-surface-low px-2.5 py-1 rounded-md border border-surface-container">
+                Real-time API
+              </span>
             </div>
-            <h3 className="text-lg font-bold text-on-surface">Visualisasi Log & Aktivitas Data</h3>
-            <p className="text-base text-on-surface-variant max-w-md mt-2 font-medium leading-relaxed">
-              Grafik pemantauan data masuk akan dirender secara dinamis menggunakan chart komponen setelah data API terintegrasi penuh.
-            </p>
+
+            <div className="h-[220px] w-full pt-2">
+              {!isMounted || loading ? (
+                <div className="w-full h-full flex items-center justify-center text-outline gap-2 text-sm font-medium">
+                  <Loader2 className="w-5 h-5 animate-spin text-primary" /> Memuat data grafik...
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#2563eb" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#2563eb" stopOpacity={0.0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="name" 
+                      tickLine={false} 
+                      axisLine={false} 
+                      tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} 
+                    />
+                    <YAxis 
+                      tickLine={false} 
+                      axisLine={false} 
+                      tick={{ fill: '#64748b', fontSize: 12 }} 
+                      allowDecimals={false} 
+                    />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#ffffff', 
+                        borderRadius: '8px', 
+                        borderColor: '#e2e8f0',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+                        fontSize: '12px',
+                        fontWeight: '600'
+                      }} 
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="total" 
+                      stroke="#2563eb" 
+                      strokeWidth={3} 
+                      fillOpacity={1} 
+                      fill="url(#colorTotal)" 
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
           </div>
-          
-          {/* Quick Access Navigation */}
-          <div className="bg-white border border-surface-container-high rounded-xl p-6 flex flex-col justify-between shadow-sm">
-            <div>
-              <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
-                <Settings className="w-5 h-5 text-outline" /> Sistem Pintasan Rujukan
-              </h3>
-              <p className="text-sm text-on-surface-variant mt-1.5 font-medium">Akses cepat modifikasi parameter sistem kontrol.</p>
+
+          {/* Sistem Pintasan Rujukan */}
+          <div className="p-6 bg-white border border-surface-container-high rounded-xl space-y-4 shadow-xs">
+            <div className="flex items-center gap-2 text-on-surface font-bold text-sm">
+              <span className="text-outline">⚙️</span>
+              <span>Sistem Pintasan Rujukan</span>
             </div>
-            <div className="space-y-3 mt-6 lg:mt-0">
-              <a href="/admin/master" className="p-4 bg-surface-low rounded-xl border border-surface-container text-base font-bold flex justify-between items-center hover:bg-secondary-container/50 hover:text-primary transition-all shadow-sm group">
-                <span>Setup Kelas & Ruangan Baru</span>
-                <span className="text-xs font-black text-primary bg-white px-2.5 py-1 rounded-md border border-surface-container-high uppercase tracking-wide">Master</span>
-              </a>
-              <a href="/admin/users" className="p-4 bg-surface-low rounded-xl border border-surface-container text-base font-bold flex justify-between items-center hover:bg-secondary-container/50 hover:text-primary transition-all shadow-sm group">
-                <span>Registrasi Ulang Akun Otoritas</span>
-                <span className="text-xs font-black text-primary bg-white px-2.5 py-1 rounded-md border border-surface-container-high uppercase tracking-wide">Akun</span>
-              </a>
+            <p className="text-xs text-outline font-medium">
+              Akses cepat modifikasi parameter sistem kontrol.
+            </p>
+
+            <div className="space-y-3 pt-2">
+              <Link
+                href="/admin/master"
+                className="p-3 bg-surface-low hover:bg-surface-container border border-surface-container-high rounded-xl flex items-center justify-between transition-all group"
+              >
+                <div>
+                  <p className="text-xs font-bold text-on-surface">Setup Kelas & Ruangan Baru</p>
+                </div>
+                <span className="px-2 py-1 bg-white border border-blue-200 text-blue-700 font-extrabold text-[10px] rounded uppercase tracking-wider group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  MASTER
+                </span>
+              </Link>
+
+              <Link
+                href="/admin/users"
+                className="p-3 bg-surface-low hover:bg-surface-container border border-surface-container-high rounded-xl flex items-center justify-between transition-all group"
+              >
+                <div>
+                  <p className="text-xs font-bold text-on-surface">Registrasi Ulang Akun Otoritas</p>
+                </div>
+                <span className="px-2 py-1 bg-white border border-blue-200 text-blue-700 font-extrabold text-[10px] rounded uppercase tracking-wider group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                  AKUN
+                </span>
+              </Link>
             </div>
           </div>
 

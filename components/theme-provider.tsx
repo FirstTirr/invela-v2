@@ -2,7 +2,12 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-const ThemeContext = createContext({
+type ThemeContextType = {
+  isLight: boolean;
+  toggleTheme: () => void;
+};
+
+const ThemeContext = createContext<ThemeContextType>({
   isLight: false,
   toggleTheme: () => {},
 });
@@ -10,7 +15,20 @@ const ThemeContext = createContext({
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [isLight, setIsLight] = useState(false);
 
-  const toggleTheme = () => setIsLight(!isLight);
+  useEffect(() => {
+    const storedTheme = localStorage.getItem("theme");
+    if (storedTheme === "light") {
+      setIsLight(true);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    setIsLight((prev) => {
+      const next = !prev;
+      localStorage.setItem("theme", next ? "light" : "dark");
+      return next;
+    });
+  };
 
   return (
     <ThemeContext.Provider value={{ isLight, toggleTheme }}>

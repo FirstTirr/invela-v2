@@ -2,20 +2,21 @@
 
 import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { History, X, Coins, CheckCircle2, Loader2, AlertCircle, Trash2, Wrench } from 'lucide-react';
+import { History, X, Coins, CheckCircle2, Loader2, AlertCircle, Trash2, Wrench, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   apiKerusakan, 
   apiPerbaikan, 
   apiRiwayatPerbaikan, 
   Kerusakan, 
-  Perbaikan, 
   RiwayatPerbaikan 
 } from '@/lib/api';
+import AddDamageModal from '@/components/kabeng/addDamagesModal';
 
 export default function KabengDamagesPage() {
   const [isOpenRepairModal, setIsOpenRepairModal] = useState(false);
   const [isOpenHistoryModal, setIsOpenHistoryModal] = useState(false);
+  const [isOpenAddModal, setIsOpenAddModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState<Kerusakan | null>(null);
 
   // State Data Backend
@@ -30,6 +31,22 @@ export default function KabengDamagesPage() {
   // Form State untuk Modal Perbaikan
   const [deskripsiPerbaikan, setDeskripsiPerbaikan] = useState('');
   const [biayaPerbaikan, setBiayaPerbaikan] = useState('');
+
+  // Helper Formatting Ribuan (Titik)
+  const formatRibuan = (value: string) => {
+    const rawValue = value.replace(/\D/g, ''); // Hapus semua karakter selain angka
+    if (!rawValue) return '';
+    return new Intl.NumberFormat('id-ID').format(Number(rawValue));
+  };
+
+  const parseRawNumber = (value: string) => {
+    return value.replace(/\D/g, '');
+  };
+
+  const handleBiayaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatRibuan(e.target.value);
+    setBiayaPerbaikan(formatted);
+  };
 
   // Fetch data laporan kerusakan & filter berdasarkan jurusan Kabeng yang login
   const fetchData = async () => {
@@ -105,10 +122,12 @@ export default function KabengDamagesPage() {
 
     try {
       setIsSubmitting(true);
+      const rawBiaya = parseRawNumber(biayaPerbaikan);
+
       await apiPerbaikan.create({
         id_kerusakan: selectedReport.id,
         deskripsi_perbaikan: deskripsiPerbaikan,
-        biaya: Number(biayaPerbaikan) || 0,
+        biaya: Number(rawBiaya) || 0,
       });
 
       alert("Data perbaikan berhasil disimpan!");
@@ -167,11 +186,21 @@ export default function KabengDamagesPage() {
   return (
     <PageAnimateWrapper>
       <div className="space-y-8 font-sans antialiased tracking-tight">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight text-on-surface">Laporan Kerusakan & Perbaikan</h1>
-          <p className="text-base text-on-surface-variant mt-2 font-medium">
-            Pusat kendali tindakan pemeliharaan aset laboratorium dan log pendanaan.
-          </p>
+        
+        {/* Header dengan Tombol Tambah Laporan */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight text-on-surface">Laporan Kerusakan & Perbaikan</h1>
+            <p className="text-base text-on-surface-variant mt-2 font-medium">
+              Pusat kendali tindakan pemeliharaan aset laboratorium dan log pendanaan.
+            </p>
+          </div>
+          <button
+            onClick={() => setIsOpenAddModal(true)}
+            className="px-4 py-2.5 bg-error hover:bg-error/90 text-white font-bold text-sm rounded-xl flex items-center gap-2 shadow-xs transition-all cursor-pointer shrink-0 self-start sm:self-auto"
+          >
+            <Plus className="w-4 h-4" /> Laporkan Kerusakan
+          </button>
         </div>
 
         {/* 2 Top Cost Summary Cards */}
@@ -247,6 +276,7 @@ export default function KabengDamagesPage() {
                       const namaBarang = itemInst?.perangkat?.nama_perangkat || itemInst?.perangkat?.nama || 'Perangkat';
                       const kodeUnit = itemInst?.kode_asset || itemInst?.kode_unit || `Unit #${report.id_item_instance}`;
                       const namaPelapor = report.user?.name || report.user?.username || `User #${report.id_user}`;
+                      const isSelesai = report.status?.toLowerCase() === 'selesai';
 
                       return (
                         <tr key={report.id} className="hover:bg-surface-low/30 transition-colors">
@@ -259,7 +289,7 @@ export default function KabengDamagesPage() {
                           </td>
                           <td className="p-5 text-center whitespace-nowrap">
                             <span className={`px-3 py-1 text-xs font-bold rounded-full capitalize ${
-                              report.status === 'selesai' 
+                              isSelesai 
                                 ? 'bg-green-100 text-green-700' 
                                 : report.status === 'sedang diperbaiki'
                                 ? 'bg-amber-100 text-amber-700'
@@ -285,7 +315,12 @@ export default function KabengDamagesPage() {
                                 setBiayaPerbaikan('');
                                 setIsOpenRepairModal(true); 
                               }}
-                              className="px-3 py-2 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg transition-all inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                              disabled={isSelesai}
+                              className={`px-3 py-2 text-sm font-bold rounded-lg transition-all inline-flex items-center gap-1.5 ${
+                                isSelesai 
+                                  ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60' 
+                                  : 'text-white bg-primary hover:bg-primary-container cursor-pointer shadow-xs'
+                              }`}
                             >
                               <Wrench className="w-4 h-4" /> Perbaikan
                             </button>
@@ -311,6 +346,17 @@ export default function KabengDamagesPage() {
             </div>
           )}
         </div>
+
+        {/* MODAL INPUT KERUSAKAN BARU */}
+        <AnimatePresence>
+          {isOpenAddModal && (
+            <AddDamageModal
+              isOpen={isOpenAddModal}
+              onClose={() => setIsOpenAddModal(false)}
+              onSuccess={fetchData}
+            />
+          )}
+        </AnimatePresence>
 
         {/* MODAL INPUT PERBAIKAN BARANG */}
         <AnimatePresence>
@@ -346,11 +392,10 @@ export default function KabengDamagesPage() {
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-outline uppercase tracking-wider">Total Biaya Perbaikan (Rp)</label>
                     <input 
-                      type="number" 
-                      min="0"
-                      placeholder="Contoh: 300000" 
+                      type="text" 
+                      placeholder="Contoh: 300.000" 
                       value={biayaPerbaikan}
-                      onChange={(e) => setBiayaPerbaikan(e.target.value)}
+                      onChange={handleBiayaChange}
                       className="w-full px-4 py-3 border border-surface-container-high rounded-lg text-base text-on-surface bg-white focus:outline-none focus:border-primary font-semibold"
                     />
                   </div>

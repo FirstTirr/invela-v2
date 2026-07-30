@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, PackagePlus, ClipboardList, 
-  AlertTriangle, User, LogOut, Menu, X, MonitorCheck 
+  AlertTriangle, User, LogOut, Menu, X, MonitorCheck, History 
 } from 'lucide-react';
 
 export default function KabengLayout({ children }: { children: React.ReactNode }) {
@@ -39,6 +39,7 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
     { title: 'Penggunaan Labor', href: '/kabeng/penggunaan', icon: MonitorCheck },
     { title: 'Peminjaman Barang', href: '/kabeng/loans', icon: ClipboardList },
     { title: 'Laporan Kerusakan', href: '/kabeng/damages', icon: AlertTriangle },
+    { title: 'Riwayat Perbaikan', href: '/kabeng/damages/repair-history', icon: History },
   ];
 
   const SidebarContent = () => (

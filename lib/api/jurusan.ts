@@ -2,7 +2,8 @@ import { fetchWithAuth } from './fetcher';
 
 export interface Jurusan {
   id: number;
-  nama_jurusan: string;
+  nama_jurusan: string; // Sesuai dengan field database backend Go
+  jurusan?: string;     // Alias cadangan jika komponen memanggil .jurusan
   created_at?: string;
   updated_at?: string;
 }
@@ -10,7 +11,14 @@ export interface Jurusan {
 export const apiJurusan = {
   async getAll(): Promise<Jurusan[]> {
     const result = await fetchWithAuth('/api/jurusan', { method: 'GET', cache: 'no-store' });
-    return result.data || [];
+    const rawData = result.data || [];
+    
+    // Mapping otomatis agar properti 'nama_jurusan' dan 'jurusan' sinkron dua arah
+    return rawData.map((item: any) => ({
+      ...item,
+      nama_jurusan: item.nama_jurusan || item.jurusan || '',
+      jurusan: item.jurusan || item.nama_jurusan || '',
+    }));
   },
 
   async create(namaJurusan: string): Promise<Jurusan> {
@@ -18,7 +26,12 @@ export const apiJurusan = {
       method: 'POST',
       body: JSON.stringify({ nama_jurusan: namaJurusan }),
     });
-    return result.data;
+    const item = result.data;
+    return {
+      ...item,
+      nama_jurusan: item.nama_jurusan || item.jurusan || namaJurusan,
+      jurusan: item.jurusan || item.nama_jurusan || namaJurusan,
+    };
   },
 
   async update(id: number, namaJurusan: string): Promise<Jurusan> {
@@ -26,7 +39,12 @@ export const apiJurusan = {
       method: 'PUT',
       body: JSON.stringify({ nama_jurusan: namaJurusan }),
     });
-    return result.data;
+    const item = result.data;
+    return {
+      ...item,
+      nama_jurusan: item.nama_jurusan || item.jurusan || namaJurusan,
+      jurusan: item.jurusan || item.nama_jurusan || namaJurusan,
+    };
   },
 
   async delete(id: number): Promise<void> {

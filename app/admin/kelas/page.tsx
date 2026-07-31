@@ -3,26 +3,30 @@
 import React, { useEffect, useState } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Trash2, Edit, X, Save } from 'lucide-react';
-import { apiKelas, Kelas } from '@/lib/api';
+import { apiKelas, apiJurusan, Kelas, Jurusan } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export default function ReadKelasPage() {
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
+  const [jurusanList, setJurusanList] = useState<Jurusan[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // State untuk menangani modal pop-up edit
   const [isOpenEditModal, setIsOpenEditModal] = useState<boolean>(false);
   const [selectedKelas, setSelectedKelas] = useState<Kelas | null>(null);
   const [editValue, setEditValue] = useState<string>('');
+  const [editJurusanId, setEditJurusanId] = useState<number | ''>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // Fetch data dari API Go saat halaman dimuat
-  const fetchKelas = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const data = await apiKelas.getAll();
-      setKelasList(data);
+      const [kelasData, jurusanData] = await Promise.all([
+        apiKelas.getAll(),
+        apiJurusan.getAll()
+      ]);
+      setKelasList(kelasData);
+      setJurusanList(jurusanData);
       setError(null);
     } catch (err: any) {
       setError(err.message || 'Terjadi kesalahan sistem.');
@@ -32,10 +36,9 @@ export default function ReadKelasPage() {
   };
 
   useEffect(() => {
-    fetchKelas();
+    fetchData();
   }, []);
 
-  // Handler Hapus Data
   const handleDelete = async (id: number) => {
     if (!confirm('Apakah Anda yakin ingin menghapus data kelas ini?')) return;
     try {
@@ -46,29 +49,59 @@ export default function ReadKelasPage() {
     }
   };
 
-  // Membuka modal edit dan set data yang dipilih
-  const handleEditClick = (item: Kelas) => {
+  const handleEditClick = (item: any) => {
     setSelectedKelas(item);
     setEditValue(item.kelas);
+    const currentId = item.id_jurusan ?? item.idJurusan ?? item.ID_Jurusan ?? item.IDJurusan ?? item.jurusan?.id ?? item.Jurusan?.id ?? '';
+    setEditJurusanId(currentId);
     setIsOpenEditModal(true);
   };
 
-  // Menyimpan perubahan data kelas ke backend Go via Pop-up
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedKelas || !editValue.trim()) return;
+    if (!selectedKelas || !editValue.trim() || !editJurusanId) return;
 
     try {
       setIsSaving(true);
-      const updatedData = await apiKelas.update(selectedKelas.id, editValue.trim());
+      const updatedData = await apiKelas.update(selectedKelas.id, editValue.trim(), Number(editJurusanId));
       setKelasList(prev => prev.map(item => item.id === selectedKelas.id ? updatedData : item));
       setIsOpenEditModal(false);
       setSelectedKelas(null);
+      fetchData();
     } catch (err: any) {
       alert(err.message || 'Gagal memperbarui kelas');
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // Helper untuk membaca nama jurusan secara aman dari berbagai variasi backend
+  const getJurusanName = (item: any) => {
+    // 1. Cek objek relasi dari backend
+    const relObj = item.jurusan || item.Jurusan || item.dataJurusan;
+    if (relObj) {
+      const name = relObj.nama_jurusan || relObj.jurusan || relObj.NamaJurusan || relObj.Nama_Jurusan;
+      if (name) return name;
+    }
+    
+    // 2. Cek ID foreign key lalu cari manual ke state jurusanList
+    const targetId = 
+      item.id_jurusan ?? 
+      item.idJurusan ?? 
+      item.ID_Jurusan ?? 
+      item.IDJurusan ?? 
+      item.IdJurusan ?? 
+      item.jurusan_id ?? 
+      item.JurusanId;
+
+    if (targetId && jurusanList.length > 0) {
+      const found = jurusanList.find((j: any) => Number(j.id) === Number(targetId));
+      if (found) {
+        return found.nama_jurusan || (found as any).jurusan || (found as any).NamaJurusan || '-';
+      }
+    }
+    
+    return '-';
   };
 
   return (
@@ -79,7 +112,6 @@ export default function ReadKelasPage() {
           <p className="text-base text-on-surface-variant mt-2 font-medium">Daftar kelas yang terdaftar dalam cakupan hak akses peminjaman alat labor.</p>
         </div>
 
-        {/* Tabel Data Kelas */}
         <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-sm w-full">
           <div className="overflow-x-auto w-full">
             {loading ? (
@@ -93,6 +125,7 @@ export default function ReadKelasPage() {
                 <thead className="bg-surface-low border-b border-surface-container-high">
                   <tr>
                     <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Nama Kelas</th>
+                    <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Program Keahlian (Jurusan)</th>
                     <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider text-right w-32">Aksi</th>
                   </tr>
                 </thead>
@@ -101,6 +134,9 @@ export default function ReadKelasPage() {
                     <tr key={item.id} className="hover:bg-surface-low/30 transition-colors">
                       <td className="p-5 text-base font-extrabold text-primary whitespace-nowrap">
                         {item.kelas}
+                      </td>
+                      <td className="p-5 text-base font-medium text-outline whitespace-nowrap">
+                        {getJurusanName(item)}
                       </td>
                       <td className="p-5 text-right flex justify-end gap-2 whitespace-nowrap">
                         <button 
@@ -126,7 +162,6 @@ export default function ReadKelasPage() {
           </div>
         </div>
 
-        {/* 💻 POP-UP MODAL EDIT KELAS */}
         <AnimatePresence>
           {isOpenEditModal && selectedKelas && (
             <div className="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -136,7 +171,6 @@ export default function ReadKelasPage() {
                 exit={{ opacity: 0, scale: 0.96 }}
                 className="bg-white w-full max-w-md border border-surface-container-high rounded-xl shadow-xl p-6 space-y-5"
               >
-                {/* Modal Header */}
                 <div className="flex justify-between items-center border-b border-surface-container pb-3">
                   <h3 className="text-lg font-bold text-on-surface">Ubah Identitas Kelas</h3>
                   <button 
@@ -147,8 +181,7 @@ export default function ReadKelasPage() {
                   </button>
                 </div>
 
-                {/* Modal Form Content */}
-                <form onSubmit={handleUpdate} className="space-y-5">
+                <form onSubmit={handleUpdate} className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-outline uppercase tracking-wider">Nama Rombel Kelas</label>
                     <input 
@@ -162,7 +195,22 @@ export default function ReadKelasPage() {
                     />
                   </div>
 
-                  {/* Action Buttons */}
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-outline uppercase tracking-wider">Program Keahlian (Jurusan)</label>
+                    <select
+                      required
+                      disabled={isSaving}
+                      value={editJurusanId}
+                      onChange={(e) => setEditJurusanId(Number(e.target.value))}
+                      className="w-full px-4 py-3 border border-surface-container-high rounded-lg text-base text-on-surface bg-white focus:outline-none focus:border-primary font-medium shadow-sm cursor-pointer"
+                    >
+                      <option value="">-- Pilih Jurusan --</option>
+                      {jurusanList.map((j: any) => (
+                        <option key={j.id} value={j.id}>{j.nama_jurusan || j.jurusan}</option>
+                      ))}
+                    </select>
+                  </div>
+
                   <div className="flex justify-end gap-3 pt-3 border-t border-surface-container">
                     <button 
                       type="button"

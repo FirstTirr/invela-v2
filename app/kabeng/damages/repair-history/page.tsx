@@ -42,7 +42,9 @@ export default function RepairHistoryPage() {
         try {
           const listJurusan = await apiJurusan.getAll();
           const found = listJurusan.find((j: any) => String(j.id) === String(myJurusanId));
-          if (found) detectedJurusan = found.nama_jurusan || found.nama;
+          if (found) {
+            detectedJurusan = found.nama_jurusan || (found as any).nama || "";
+          }
         } catch {
           // fallback jika api fail
         }

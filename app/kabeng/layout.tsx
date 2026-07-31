@@ -40,6 +40,7 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
     { title: 'Peminjaman Barang', href: '/kabeng/loans', icon: ClipboardList },
     { title: 'Laporan Kerusakan', href: '/kabeng/damages', icon: AlertTriangle },
     { title: 'Riwayat Perbaikan', href: '/kabeng/damages/repair-history', icon: History },
+    { title: 'Riwayat Peminjaman', href: '/kabeng/loans/completed', icon: History },
   ];
 
   const SidebarContent = () => (

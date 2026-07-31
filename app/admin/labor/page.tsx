@@ -3,24 +3,29 @@
 import React, { useEffect, useState } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Trash2, Edit, Loader2, RefreshCw } from 'lucide-react';
-import { apiLabor, Labor } from '@/lib/api';
+import { apiLabor, apiJurusan, Labor, Jurusan } from '@/lib/api';
 
 export default function ReadLaborPage() {
   const [labors, setLabors] = useState<Labor[]>([]);
+  const [jurusanList, setJurusanList] = useState<Jurusan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // State Modal Edit
   const [editingLabor, setEditingLabor] = useState<Labor | null>(null);
   const [editValue, setEditValue] = useState('');
+  const [editJurusanId, setEditJurusanId] = useState<string | number>('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const fetchLabors = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiLabor.getAll();
-      setLabors(data);
+      const [laborData, jurusanData] = await Promise.all([
+        apiLabor.getAll(),
+        apiJurusan.getAll()
+      ]);
+      setLabors(laborData);
+      setJurusanList(jurusanData);
     } catch (err: any) {
       setError(err.message || 'Gagal memuat data labor');
     } finally {
@@ -29,7 +34,7 @@ export default function ReadLaborPage() {
   };
 
   useEffect(() => {
-    fetchLabors();
+    fetchData();
   }, []);
 
   const handleDelete = async (id: number, nama: string) => {
@@ -46,6 +51,8 @@ export default function ReadLaborPage() {
   const handleOpenEdit = (labor: Labor) => {
     setEditingLabor(labor);
     setEditValue(labor.labor);
+    const currentId = labor.id_jurusan ?? labor.idJurusan ?? labor.ID_Jurusan ?? (labor as any).IDJurusan ?? labor.jurusan?.id ?? labor.Jurusan?.id ?? '';
+    setEditJurusanId(currentId);
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -54,16 +61,34 @@ export default function ReadLaborPage() {
 
     try {
       setIsUpdating(true);
-      const updated = await apiLabor.update(editingLabor.id, editValue);
-      setLabors((prev) =>
-        prev.map((item) => (item.id === editingLabor.id ? updated : item))
-      );
+      await apiLabor.update(editingLabor.id, editValue, Number(editJurusanId));
+      await fetchData();
       setEditingLabor(null);
     } catch (err: any) {
       alert(`Gagal memperbarui: ${err.message}`);
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  // Helper untuk mendapatkan nama jurusan secara presisi
+  const getJurusanName = (labor: any) => {
+    const targetId = labor.id_jurusan ?? labor.idJurusan ?? labor.ID_Jurusan ?? labor.IDJurusan ?? labor.jurusan_id ?? labor.jurusan?.id ?? labor.Jurusan?.id;
+
+    if (targetId !== undefined && targetId !== null && jurusanList.length > 0) {
+      const found = jurusanList.find((j: any) => String(j.id) === String(targetId));
+      if (found) {
+        return found.nama_jurusan || found.jurusan || (found as any).NamaJurusan || '-';
+      }
+    }
+
+    const relObj = labor.jurusan || labor.Jurusan;
+    if (relObj) {
+      const name = relObj.nama_jurusan || relObj.jurusan || relObj.NamaJurusan;
+      if (name) return name;
+    }
+    
+    return '-';
   };
 
   return (
@@ -75,8 +100,8 @@ export default function ReadLaborPage() {
             <p className="text-base text-on-surface-variant mt-2 font-medium">Daftar seluruh ruang laboratorium yang aktif digunakan untuk kegiatan praktikum harian.</p>
           </div>
           <button
-            onClick={fetchLabors}
-            className="p-2 border border-surface-container-high rounded-xl hover:bg-surface-low text-on-surface transition-all"
+            onClick={fetchData}
+            className="p-2 border border-surface-container-high rounded-xl hover:bg-surface-low text-on-surface transition-all cursor-pointer"
             title="Refresh Data"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
@@ -89,26 +114,27 @@ export default function ReadLaborPage() {
               <thead className="bg-surface-low border-b border-surface-container-high">
                 <tr>
                   <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Nama Labor</th>
+                  <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Program Keahlian (Jurusan)</th>
                   <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider text-right w-32">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container text-on-surface font-medium">
                 {loading ? (
                   <tr>
-                    <td colSpan={2} className="p-8 text-center text-outline">
+                    <td colSpan={3} className="p-8 text-center text-outline">
                       <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
                       Memuat data laboratorium...
                     </td>
                   </tr>
                 ) : error ? (
                   <tr>
-                    <td colSpan={2} className="p-8 text-center text-error">
+                    <td colSpan={3} className="p-8 text-center text-error">
                       {error}
                     </td>
                   </tr>
                 ) : labors.length === 0 ? (
                   <tr>
-                    <td colSpan={2} className="p-8 text-center text-outline">
+                    <td colSpan={3} className="p-8 text-center text-outline">
                       Belum ada data laboratorium.
                     </td>
                   </tr>
@@ -117,6 +143,9 @@ export default function ReadLaborPage() {
                     <tr key={labor.id} className="hover:bg-surface-low/30 transition-colors">
                       <td className="p-5 text-base font-extrabold text-on-surface whitespace-nowrap">
                         {labor.labor}
+                      </td>
+                      <td className="p-5 text-base font-semibold text-outline whitespace-nowrap">
+                        {getJurusanName(labor)}
                       </td>
                       <td className="p-5 text-right flex justify-end gap-2 whitespace-nowrap">
                         <button
@@ -140,31 +169,47 @@ export default function ReadLaborPage() {
           </div>
         </div>
 
-        {/* Modal Edit Simple */}
         {editingLabor && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
             <div className="bg-white border border-surface-container-high rounded-2xl p-6 max-w-md w-full space-y-4 shadow-xl">
               <h3 className="text-xl font-bold text-on-surface">Edit Data Labor</h3>
               <form onSubmit={handleUpdate} className="space-y-4">
-                <input
-                  type="text"
-                  required
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base focus:outline-none focus:border-primary"
-                />
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-outline uppercase tracking-wider">Nama Labor</label>
+                  <input
+                    type="text"
+                    required
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base focus:outline-none focus:border-primary font-bold"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-outline uppercase tracking-wider">Jurusan</label>
+                  <select
+                    required
+                    value={editJurusanId}
+                    onChange={(e) => setEditJurusanId(e.target.value)}
+                    className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base focus:outline-none focus:border-primary bg-white font-medium cursor-pointer"
+                  >
+                    <option value="">-- Pilih Jurusan --</option>
+                    {jurusanList.map((j: any) => (
+                      <option key={j.id} value={j.id}>{j.nama_jurusan || j.jurusan}</option>
+                    ))}
+                  </select>
+                </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => setEditingLabor(null)}
-                    className="px-4 py-2 font-bold text-on-surface-variant hover:bg-surface-low rounded-lg"
+                    className="px-4 py-2 font-bold text-on-surface-variant hover:bg-surface-low rounded-lg cursor-pointer"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
                     disabled={isUpdating}
-                    className="px-4 py-2 font-bold text-white bg-primary rounded-lg disabled:opacity-50"
+                    className="px-4 py-2 font-bold text-white bg-primary rounded-lg disabled:opacity-50 cursor-pointer"
                   >
                     {isUpdating ? 'Simpan...' : 'Update'}
                   </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Plus, Network, GraduationCap, Tags, Server, ArrowRight } from 'lucide-react';
 import { apiKelas, apiJurusan, apiKategori, apiLabor } from '@/lib/api';
@@ -8,7 +8,26 @@ import { apiKelas, apiJurusan, apiKategori, apiLabor } from '@/lib/api';
 export default function MasterInputPage() {
   const [activeTab, setActiveTab] = useState<'labor' | 'jurusan' | 'kelas' | 'category'>('labor');
   const [inputValue, setInputValue] = useState('');
+  const [selectedJurusanId, setSelectedJurusanId] = useState<number | ''>('');
+  const [jurusanList, setJurusanList] = useState<any[]>([]);
+  const [loadingJurusan, setLoadingJurusan] = useState(false);
   const [loading, setLoading] = useState(false); 
+
+  // Fetch data jurusan untuk dropdown (Digunakan pada tab labor & kelas)
+  useEffect(() => {
+    const fetchJurusan = async () => {
+      try {
+        setLoadingJurusan(true);
+        const data = await apiJurusan.getAll();
+        setJurusanList(data || []);
+      } catch (err) {
+        console.error('Gagal memuat data jurusan:', err);
+      } finally {
+        setLoadingJurusan(false);
+      }
+    };
+    fetchJurusan();
+  }, []);
 
   const tabsConfig = {
     labor: {
@@ -57,13 +76,20 @@ export default function MasterInputPage() {
     const cleanValue = inputValue.trim();
     if (!cleanValue) return;
 
+    // Validasi Relasi Jurusan jika tab labor atau kelas aktif
+    if ((activeTab === 'labor' || activeTab === 'kelas') && !selectedJurusanId) {
+      alert('Harap pilih Program Keahlian / Jurusan terlebih dahulu!');
+      return;
+    }
+
     try {
       setLoading(true);
       if (activeTab === 'labor') {
-        await apiLabor.create(cleanValue);
+        // Sesuaikan parameter kirim objek ke backend jika labor memerlukan id_jurusan
+        await apiLabor.create(cleanValue, Number(selectedJurusanId));
         alert(`Sukses! Ruang Laboratorium [${cleanValue}] berhasil disimpan ke database.`);
       } else if (activeTab === 'kelas') {
-        await apiKelas.create(cleanValue);
+        await apiKelas.create(cleanValue, Number(selectedJurusanId));
         alert(`Sukses! Rombel Kelas [${cleanValue}] berhasil disimpan ke database.`);
       } else if (activeTab === 'jurusan') {
         await apiJurusan.create(cleanValue);
@@ -73,6 +99,7 @@ export default function MasterInputPage() {
         alert(`Sukses! Kategori Logistik [${cleanValue}] berhasil disimpan ke database.`);
       }
       setInputValue('');
+      setSelectedJurusanId('');
     } catch (err: any) {
       alert(`Gagal menyimpan data: ${err.message}`);
     } finally {
@@ -108,7 +135,7 @@ export default function MasterInputPage() {
                 <button
                   key={key}
                   type="button"
-                  onClick={() => { setActiveTab(key); setInputValue(''); }}
+                  onClick={() => { setActiveTab(key); setInputValue(''); setSelectedJurusanId(''); }}
                   className={`w-full flex items-center justify-between p-4 rounded-xl text-base font-bold transition-all duration-200 group cursor-pointer ${
                     isActive
                       ? 'bg-secondary-container text-primary shadow-sm'
@@ -145,6 +172,33 @@ export default function MasterInputPage() {
                 </div>
 
                 <form onSubmit={handleSave} className="space-y-6 pt-2">
+                  
+                  {/* Pilihan Jurusan khusus untuk Tab Laboratorium dan Rombel Kelas */}
+                  {(activeTab === 'labor' || activeTab === 'kelas') && (
+                    <div className="space-y-2">
+                      <label className="text-xs font-bold text-outline uppercase tracking-wider">Pilih Program Keahlian (Jurusan)</label>
+                      <div className="relative group">
+                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-outline">
+                          <Network className="w-5 h-5" />
+                        </div>
+                        <select
+                          required
+                          disabled={loadingJurusan || loading}
+                          value={selectedJurusanId}
+                          onChange={(e) => setSelectedJurusanId(Number(e.target.value))}
+                          className="w-full pl-12 pr-4 py-3.5 border border-surface-container-high rounded-xl text-base bg-white text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all duration-200 font-medium shadow-sm cursor-pointer disabled:opacity-60"
+                        >
+                          <option value="">{loadingJurusan ? 'Memuat data jurusan...' : '-- Pilih Jurusan Terkait --'}</option>
+                          {jurusanList.map((j: any) => (
+                            <option key={j.id} value={j.id}>
+                              {j.jurusan || j.nama_jurusan}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="space-y-2">
                     <label className="text-xs font-bold text-outline uppercase tracking-wider">Entri Karakter Data</label>
                     <div className="relative group">
@@ -177,7 +231,7 @@ export default function MasterInputPage() {
                     <button
                       type="button"
                       disabled={loading}
-                      onClick={() => setInputValue('')}
+                      onClick={() => { setInputValue(''); setSelectedJurusanId(''); }}
                       className="px-5 py-3 text-base font-bold text-on-surface-variant hover:bg-surface-low rounded-xl transition-colors cursor-pointer disabled:opacity-50"
                     >
                       Reset Form

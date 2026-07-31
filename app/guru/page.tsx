@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ClipboardList, Calendar, Loader2, Search, ChevronDown, Check } from 'lucide-react';
+import { ClipboardList, Calendar, Loader2, Search, ChevronDown, Check, Lock } from 'lucide-react';
 import { apiKelas, Kelas } from '@/lib/api/kelas';
 import { apiLabor, Labor } from '@/lib/api/labor';
 import { apiPenggunaan } from '@/lib/api/penggunaan';
@@ -65,22 +65,59 @@ export default function LaporPemakaianLabor() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter List Kelas berdasarkan kata kunci pencarian
+  // Obj Kelas yang dipilih saat ini
+  const selectedKelasObj = kelasList.find((k) => String(k.id) === String(formData.kelas_id));
+  const selectedKelasName = selectedKelasObj ? selectedKelasObj.kelas : '';
+
+  // Handle saat kelas dipilih: Reset labor_id dan tutup dropdown kelas
+  const handleSelectKelas = (kelasId: string) => {
+    setFormData((prev) => ({ ...prev, kelas_id: kelasId, labor_id: '' }));
+    setIsKelasOpen(false);
+    setSearchLabor('');
+  };
+
+  // 1. Filter List Kelas berdasarkan kata kunci pencarian
   const filteredKelasList = kelasList.filter((item) =>
     (item.kelas || '').toLowerCase().includes(searchKelas.toLowerCase())
   );
 
-  // Filter List Laboratorium berdasarkan kata kunci pencarian
-  const filteredLaborList = laborList.filter((item) =>
-    (item.labor || '').toLowerCase().includes(searchLabor.toLowerCase())
+  // 2. Filter Laboratorium berdasarkan jurusan kelas yang dipilih
+  const availableLaborList = laborList.filter((labor: any) => {
+    if (!selectedKelasObj) return false; // Jika belum pilih kelas, jangan tampilkan list labor sama sekali
+
+    // Match via ID Jurusan
+    const kelasJurusanId = Number((selectedKelasObj as any).id_jurusan ?? (selectedKelasObj as any).idJurusan ?? (selectedKelasObj as any).jurusan?.id ?? 0);
+    const laborJurusanId = Number(labor.id_jurusan ?? labor.idJurusan ?? labor.jurusan?.id ?? 0);
+
+    if (kelasJurusanId > 0 && laborJurusanId > 0) {
+      return kelasJurusanId === laborJurusanId;
+    }
+
+    // Match via String/Nama (Fallback)
+    const kelasString = (selectedKelasObj.kelas || '').toLowerCase();
+    const laborString = (labor.labor || labor.nama_labor || '').toLowerCase();
+    const laborJurusanName = (labor.jurusan?.nama_jurusan || labor.jurusan?.jurusan || '').toLowerCase();
+
+    const knownJurusanList = ['rpl', 'dkv', 'tkj', 'tflm', 'akl', 'otkp', 'bdp', 'mm'];
+    const detectedJurusan = knownJurusanList.find((j) => kelasString.includes(j));
+
+    if (detectedJurusan) {
+      return laborString.includes(detectedJurusan) || laborJurusanName.includes(detectedJurusan);
+    }
+
+    return true;
+  });
+
+  const filteredLaborList = availableLaborList.filter((item: any) =>
+    (item.labor || item.nama_labor || '').toLowerCase().includes(searchLabor.toLowerCase())
   );
 
-  // Label Pilihan Saat Ini
-  const selectedKelasObj = kelasList.find((k) => String(k.id) === String(formData.kelas_id));
-  const selectedKelasName = selectedKelasObj ? selectedKelasObj.kelas : '';
-
+  // Label Labor yang dipilih saat ini
   const selectedLaborObj = laborList.find((l) => String(l.id) === String(formData.labor_id));
   const selectedLaborName = selectedLaborObj ? selectedLaborObj.labor : '';
+
+  // Cek apakah dropdown labor dikunci (karena belum pilih kelas atau sedang loading)
+  const isLaborDisabled = isLoadingData || isSubmitting || !formData.kelas_id;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -150,7 +187,7 @@ export default function LaporPemakaianLabor() {
               <div className="space-y-2 relative" ref={dropdownKelasRef}>
                 <label className="text-xs font-bold text-outline uppercase tracking-wider">Kelas Yang Menggunakan</label>
                 
-                {/* Trigger Button */}
+                {/* Trigger Button Kelas */}
                 <div
                   onClick={() => !isLoadingData && !isSubmitting && setIsKelasOpen(!isKelasOpen)}
                   className={`w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface flex items-center justify-between shadow-sm transition-all font-semibold ${
@@ -169,7 +206,7 @@ export default function LaporPemakaianLabor() {
                   )}
                 </div>
 
-                {/* Popover Dropdown Menu */}
+                {/* Popover Dropdown Menu Kelas */}
                 {isKelasOpen && (
                   <div className="absolute z-30 w-full mt-1 bg-white border border-surface-container-high rounded-xl shadow-lg p-2 space-y-2 max-h-64 overflow-hidden flex flex-col">
                     <div className="relative shrink-0">
@@ -192,10 +229,7 @@ export default function LaporPemakaianLabor() {
                           return (
                             <div
                               key={item.id}
-                              onClick={() => {
-                                setFormData({ ...formData, kelas_id: String(item.id) });
-                                setIsKelasOpen(false);
-                              }}
+                              onClick={() => handleSelectKelas(String(item.id))}
                               className={`px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer flex items-center justify-between transition-colors ${
                                 isSelected ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-surface-low text-on-surface'
                               }`}
@@ -215,27 +249,34 @@ export default function LaporPemakaianLabor() {
               <div className="space-y-2 relative" ref={dropdownLaborRef}>
                 <label className="text-xs font-bold text-outline uppercase tracking-wider">Laboratorium Yang Digunakan</label>
                 
-                {/* Trigger Button */}
+                {/* Trigger Button Laboratorium */}
                 <div
-                  onClick={() => !isLoadingData && !isSubmitting && setIsLaborOpen(!isLaborOpen)}
-                  className={`w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface flex items-center justify-between shadow-sm transition-all font-semibold ${
-                    isLoadingData || isSubmitting
-                      ? 'bg-slate-100 cursor-not-allowed opacity-60'
-                      : 'cursor-pointer hover:border-primary/50'
+                  onClick={() => !isLaborDisabled && setIsLaborOpen(!isLaborOpen)}
+                  className={`w-full px-4 py-3 border border-surface-container-high rounded-xl text-base flex items-center justify-between shadow-sm transition-all font-semibold ${
+                    isLaborDisabled
+                      ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed select-none'
+                      : 'bg-white text-on-surface cursor-pointer hover:border-primary/50'
                   }`}
                 >
-                  <span className={selectedLaborName ? 'text-on-surface font-semibold' : 'text-outline'}>
-                    {isLoadingData ? "Memuat data labor..." : selectedLaborName || "-- Pilih Ruangan Labor --"}
+                  <span className={selectedLaborName ? 'text-on-surface font-semibold' : 'text-slate-400'}>
+                    {isLoadingData
+                      ? "Memuat data labor..."
+                      : !formData.kelas_id
+                      ? "Pilih kelas terlebih dahulu"
+                      : selectedLaborName || "-- Pilih Ruangan Labor --"}
                   </span>
+                  
                   {isLoadingData ? (
                     <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  ) : !formData.kelas_id ? (
+                    <Lock className="w-4 h-4 text-slate-400" />
                   ) : (
                     <ChevronDown className={`w-4 h-4 text-outline transition-transform duration-200 ${isLaborOpen ? 'rotate-180' : ''}`} />
                   )}
                 </div>
 
-                {/* Popover Dropdown Menu */}
-                {isLaborOpen && (
+                {/* Popover Dropdown Menu Laboratorium */}
+                {isLaborOpen && !isLaborDisabled && (
                   <div className="absolute z-30 w-full mt-1 bg-white border border-surface-container-high rounded-xl shadow-lg p-2 space-y-2 max-h-64 overflow-hidden flex flex-col">
                     <div className="relative shrink-0">
                       <Search className="w-4 h-4 text-outline absolute left-3 top-1/2 -translate-y-1/2" />
@@ -250,9 +291,11 @@ export default function LaporPemakaianLabor() {
                     </div>
                     <div className="overflow-y-auto space-y-1 flex-1">
                       {filteredLaborList.length === 0 ? (
-                        <p className="p-3 text-xs text-center text-outline">Ruangan labor tidak ditemukan</p>
+                        <p className="p-3 text-xs text-center text-outline">
+                          Tidak ada labor yang sesuai untuk {selectedKelasName}
+                        </p>
                       ) : (
-                        filteredLaborList.map((item) => {
+                        filteredLaborList.map((item: any) => {
                           const isSelected = String(item.id) === String(formData.labor_id);
                           return (
                             <div
@@ -265,7 +308,7 @@ export default function LaporPemakaianLabor() {
                                 isSelected ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-surface-low text-on-surface'
                               }`}
                             >
-                              {item.labor}
+                              {item.labor || item.nama_labor}
                               {isSelected && <Check className="w-4 h-4 text-primary" />}
                             </div>
                           );

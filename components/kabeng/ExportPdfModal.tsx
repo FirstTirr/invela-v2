@@ -18,8 +18,9 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
   const [selectedLaborId, setSelectedLaborId] = useState<number>(laborList[0]?.id || 0);
   const [namaSekolah, setNamaSekolah] = useState('SMKN 4 Payakumbuh');
   const [tahunAjaran, setTahunAjaran] = useState('2025/2026');
+  const [namaPencetak, setNamaPencetak] = useState('');
+  const [jabatan, setJabatan] = useState('Kepala Laboratorium');
   const [nip, setNip] = useState('');
-  const [password, setPassword] = useState('');
   const [lokasiTanggal, setLokasiTanggal] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -39,10 +40,6 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
 
   const handleGeneratePdf = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!password) {
-      alert('Masukkan password akun untuk verifikasi keamanan cetak PDF!');
-      return;
-    }
 
     try {
       setIsGenerating(true);
@@ -105,7 +102,7 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
         styles: { fontSize: 10, cellPadding: 4, valign: 'middle' },
         margin: { bottom: 65 },
 
-        // 🎨 RENDER CENTANG HITAM PRESISI ALA LUCIDE
+        // RENDER CENTANG HITAM PRESISI
         didParseCell: (data) => {
           if (data.section === 'body' && data.column.index === 3 && data.cell.raw === 'CHECKED') {
             data.cell.text = [''];
@@ -117,9 +114,8 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
             const y = data.cell.y + data.cell.height / 2;
 
             doc.setDrawColor(0, 0, 0); // Hitam Pekat
-            doc.setLineWidth(0.9);    // Ketebalan pas ala Icon Lucide
+            doc.setLineWidth(0.9);
 
-            // Dimensi lebih kecil dan presisi di tengah
             doc.line(x - 2.5, y - 0.2, x - 0.8, y + 1.8);
             doc.line(x - 0.8, y + 1.8, x + 2.5, y - 2.2);
           }
@@ -137,9 +133,11 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
       doc.setFontSize(10);
       
       doc.text(lokasiTanggal, 14, signatureY);
-      doc.text("Mengetahui Kepala Laboratorium", 14, signatureY + 6);
-      doc.text("__________________________", 14, signatureY + 28);
+      doc.text(`Mengetahui, ${jabatan || 'Kepala Laboratorium'}`, 14, signatureY + 6);
+      
       doc.setFont("helvetica", "bold");
+      doc.text(namaPencetak || "__________________________", 14, signatureY + 28);
+      doc.setFont("helvetica", "normal");
       doc.text(`NIP. ${nip || '-'}`, 14, signatureY + 34);
 
       doc.save(`Inventaris_${laborName.replace(/\s+/g, '_')}.pdf`);
@@ -157,7 +155,7 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
         initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.96 }}
-        className="bg-white w-full max-w-md border border-surface-container-high rounded-xl shadow-xl p-6 space-y-4 my-auto"
+        className="bg-white w-full max-w-md border border-surface-container-high rounded-xl shadow-xl p-6 space-y-4 my-auto max-h-[90vh] overflow-y-auto"
       >
         <div className="flex justify-between items-center border-b border-surface-container pb-2">
           <h3 className="text-lg font-bold text-on-surface flex items-center gap-2">
@@ -216,25 +214,37 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-outline uppercase tracking-wider">NIP Kepala Labor</label>
+            <label className="text-xs font-bold text-outline uppercase tracking-wider">Nama Pencetak / Penandatangan</label>
             <input 
               type="text" 
               required
-              placeholder="Masukkan NIP Anda..."
-              value={nip}
-              onChange={(e) => setNip(e.target.value)}
+              placeholder="Masukkan nama lengkap & gelar..."
+              value={namaPencetak}
+              onChange={(e) => setNamaPencetak(e.target.value)}
               className="w-full px-3 py-2 border border-surface-container-high rounded-lg text-sm font-semibold"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-outline uppercase tracking-wider">Password Akun (Keamanan)</label>
+            <label className="text-xs font-bold text-outline uppercase tracking-wider">Jabatan</label>
             <input 
-              type="password" 
+              type="text" 
               required
-              placeholder="Konfirmasi password akun..."
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Contoh: Kepala Bengkel / Kepala Laboratorium"
+              value={jabatan}
+              onChange={(e) => setJabatan(e.target.value)}
+              className="w-full px-3 py-2 border border-surface-container-high rounded-lg text-sm font-semibold"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-xs font-bold text-outline uppercase tracking-wider">NIP Kepala Labor / Pencetak</label>
+            <input 
+              type="text" 
+              required
+              placeholder="Masukkan NIP..."
+              value={nip}
+              onChange={(e) => setNip(e.target.value)}
               className="w-full px-3 py-2 border border-surface-container-high rounded-lg text-sm font-semibold"
             />
           </div>

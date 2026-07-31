@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -13,17 +13,47 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(true);
 
+  // State User Dinamis
+  const [userData, setUserData] = useState({
+    name: 'Admin Root',
+    role: 'Administrator',
+    initials: 'AD'
+  });
+
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        const name = user.nama_lengkap || user.username || user.nama || 'Admin Root';
+        const role = user.role ? user.role.toUpperCase() : 'ADMINISTRATOR';
+        const initials = name.slice(0, 2).toUpperCase();
+
+        setUserData({ name, role, initials });
+      } else {
+        const username = localStorage.getItem('username');
+        const role = localStorage.getItem('role');
+        if (username) {
+          setUserData({
+            name: username,
+            role: role ? role.toUpperCase() : 'ADMINISTRATOR',
+            initials: username.slice(0, 2).toUpperCase()
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Gagal membaca data user:", e);
+    }
+  }, []);
+
   // FUNGSI LOGOUT LENGKAP
   const handleLogout = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
-
     if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
 
-    // 1. Clear Local & Session Storage
     localStorage.clear();
     sessionStorage.clear();
 
-    // 2. Clear All Cookies (Termasuk domain & path)
     const cookies = document.cookie.split(";");
     for (let i = 0; i < cookies.length; i++) {
       const cookie = cookies[i];
@@ -33,7 +63,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
     }
 
-    // 3. Hard Reload ke Login
     window.location.href = '/login';
   };
 
@@ -127,13 +156,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
 
       <div className="border-t border-surface-container pt-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-10 h-10 rounded-full bg-surface-low border border-surface-container-high flex items-center justify-center font-black text-sm text-primary">
-            N
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-10 h-10 rounded-full bg-surface-low border border-surface-container-high flex items-center justify-center font-black text-sm text-primary shrink-0">
+            {userData.initials}
           </div>
-          <div>
-            <h4 className="text-sm font-bold text-on-surface leading-tight">Admin Root</h4>
-            <span className="text-xs font-semibold text-outline">SMKN 4 Payakumbuh</span>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-sm font-bold text-on-surface leading-tight truncate">{userData.name}</h4>
+            <span className="text-xs font-semibold text-outline block truncate">{userData.role}</span>
           </div>
         </div>
 
@@ -141,7 +170,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           type="button"
           onClick={handleLogout}
           title="Keluar dari Akun"
-          className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer"
+          className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0"
         >
           <LogOut className="w-5 h-5" />
         </button>

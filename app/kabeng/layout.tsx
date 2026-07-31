@@ -1,21 +1,77 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, PackagePlus, ClipboardList, 
-  AlertTriangle, User, LogOut, Menu, X, MonitorCheck, History 
+  AlertTriangle, User, LogOut, Menu, X, MonitorCheck, History,
+  ChevronDown
 } from 'lucide-react';
+
+interface SubMenuItem {
+  title: string;
+  href: string;
+  icon: React.ElementType;
+}
+
+interface MenuItem {
+  title: string;
+  href?: string;
+  icon: React.ElementType;
+  subItems?: SubMenuItem[];
+}
 
 export default function KabengLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
-  // FUNGSI LOGOUT LENGKAP
+  const [openLoansDropdown, setOpenLoansDropdown] = useState(false);
+  const [openDamagesDropdown, setOpenDamagesDropdown] = useState(false);
+
+  // State User Dinamis
+  const [userData, setUserData] = useState({
+    name: 'Kepala Bengkel',
+    role: 'SMKN 4 Payakumbuh',
+    initials: 'KB'
+  });
+
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        const name = user.nama_lengkap || user.username || user.nama || 'Kepala Bengkel';
+        const jurusan = user.jurusan || user.nama_jurusan || 'SMKN 4 Payakumbuh';
+        const initials = name.slice(0, 2).toUpperCase();
+
+        setUserData({ name, role: jurusan, initials });
+      } else {
+        const username = localStorage.getItem('username');
+        if (username) {
+          setUserData({
+            name: username,
+            role: 'SMKN 4 Payakumbuh',
+            initials: username.slice(0, 2).toUpperCase()
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Gagal membaca data user:", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (pathname.startsWith('/kabeng/loans')) {
+      setOpenLoansDropdown(true);
+    }
+    if (pathname.startsWith('/kabeng/damages')) {
+      setOpenDamagesDropdown(true);
+    }
+  }, [pathname]);
+
   const handleLogout = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
-
     if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
 
     localStorage.clear();
@@ -33,14 +89,26 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
     window.location.href = '/login';
   };
 
-  const kabengMenu = [
+  const kabengMenu: MenuItem[] = [
     { title: 'Dashboard Overview', href: '/kabeng', icon: LayoutDashboard },
     { title: 'Kelola & Perbaikan Barang', href: '/kabeng/items', icon: PackagePlus },
     { title: 'Penggunaan Labor', href: '/kabeng/penggunaan', icon: MonitorCheck },
-    { title: 'Peminjaman Barang', href: '/kabeng/loans', icon: ClipboardList },
-    { title: 'Laporan Kerusakan', href: '/kabeng/damages', icon: AlertTriangle },
-    { title: 'Riwayat Perbaikan', href: '/kabeng/damages/repair-history', icon: History },
-    { title: 'Riwayat Peminjaman', href: '/kabeng/loans/completed', icon: History },
+    {
+      title: 'Peminjaman Barang',
+      icon: ClipboardList,
+      subItems: [
+        { title: 'Peminjaman Aktif', href: '/kabeng/loans', icon: ClipboardList },
+        { title: 'Riwayat Peminjaman', href: '/kabeng/loans/completed', icon: History },
+      ]
+    },
+    {
+      title: 'Laporan & Kerusakan',
+      icon: AlertTriangle,
+      subItems: [
+        { title: 'Laporan Kerusakan', href: '/kabeng/damages', icon: AlertTriangle },
+        { title: 'Riwayat Perbaikan', href: '/kabeng/damages/repair-history', icon: History },
+      ]
+    },
   ];
 
   const SidebarContent = () => (
@@ -62,14 +130,69 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
           <p className="px-3 mb-3 text-xs font-bold tracking-wider text-outline uppercase">
             Bengkel Operations
           </p>
-          {kabengMenu.map((item) => {
+          {kabengMenu.map((item, idx) => {
             const Icon = item.icon;
+
+            if (item.subItems) {
+              const isLoansGroup = item.title === 'Peminjaman Barang';
+              const isOpen = isLoansGroup ? openLoansDropdown : openDamagesDropdown;
+              const toggleOpen = isLoansGroup 
+                ? () => setOpenLoansDropdown(prev => !prev) 
+                : () => setOpenDamagesDropdown(prev => !prev);
+
+              const isGroupActive = item.subItems.some(sub => sub.href === pathname);
+
+              return (
+                <div key={idx} className="space-y-1">
+                  <button
+                    type="button"
+                    onClick={toggleOpen}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-base font-bold transition-all cursor-pointer ${
+                      isGroupActive 
+                        ? "text-primary bg-primary/5" 
+                        : "text-on-surface-variant hover:bg-surface-low hover:text-on-surface"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className={`w-5 h-5 shrink-0 ${isGroupActive ? "text-primary" : "text-outline"}`} />
+                      <span>{item.title}</span>
+                    </div>
+                    <ChevronDown className={`w-4 h-4 transition-transform duration-200 text-outline ${isOpen ? "rotate-180" : ""}`} />
+                  </button>
+
+                  {isOpen && (
+                    <div className="pl-6 space-y-1 border-l-2 border-surface-container-high ml-4 my-1">
+                      {item.subItems.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const isSubActive = pathname === sub.href;
+
+                        return (
+                          <Link
+                            key={sub.href}
+                            href={sub.href}
+                            onClick={() => setIsMobileOpen(false)}
+                            className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                              isSubActive
+                                ? "bg-secondary-container text-primary shadow-xs"
+                                : "text-on-surface-variant hover:bg-surface-low hover:text-on-surface"
+                            }`}
+                          >
+                            <SubIcon className={`w-4 h-4 shrink-0 ${isSubActive ? "text-primary" : "text-outline"}`} />
+                            <span>{sub.title}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             const isActive = pathname === item.href;
-            
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={item.href || '#'}
                 onClick={() => setIsMobileOpen(false)}
                 className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-bold transition-all ${
                   isActive 
@@ -88,17 +211,17 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
       <div className="border-t border-surface-container pt-4 flex items-center justify-between bg-white">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-black text-sm shrink-0">
-            KB
+            {userData.initials}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-on-surface truncate">Fathir Adzan Satia</p>
-            <p className="text-xs font-semibold text-outline truncate">SMKN 4 Payakumbuh</p>
+            <p className="text-sm font-bold text-on-surface truncate">{userData.name}</p>
+            <p className="text-xs font-semibold text-outline truncate">{userData.role}</p>
           </div>
         </div>
         <button 
           onClick={handleLogout} 
           title="Keluar dari Akun"
-          className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer"
+          className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0"
         >
           <LogOut className="w-5 h-5" />
         </button>

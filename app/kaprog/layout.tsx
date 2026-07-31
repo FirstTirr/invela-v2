@@ -9,14 +9,43 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
 
+  const [userData, setUserData] = useState({
+    name: 'Kaprog User',
+    role: 'SMKN 4 Payakumbuh',
+    initials: 'KP'
+  });
+
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        const name = user.nama_lengkap || user.username || user.nama || 'Kepala Program';
+        const jurusan = user.jurusan || user.nama_jurusan ? `Kaprog ${user.jurusan || user.nama_jurusan}` : 'Kaprog Program';
+        const initials = name.slice(0, 2).toUpperCase();
+
+        setUserData({ name, role: jurusan, initials });
+      } else {
+        const username = localStorage.getItem('username');
+        if (username) {
+          setUserData({
+            name: username,
+            role: 'Kaprog Program',
+            initials: username.slice(0, 2).toUpperCase()
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Gagal membaca data user:", e);
+    }
+  }, []);
+
   useEffect(() => {
     setIsOpen(false);
   }, [pathname]);
 
-  // FUNGSI LOGOUT LENGKAP
   const handleLogout = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
-
     if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
 
     localStorage.clear();
@@ -118,18 +147,18 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
 
         <div className="p-4 border-t border-surface-container bg-surface-bright flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-md bg-secondary text-white flex items-center justify-center font-bold text-sm">
-              KP
+            <div className="w-9 h-9 rounded-md bg-secondary text-white flex items-center justify-center font-bold text-sm shrink-0">
+              {userData.initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-on-surface truncate">Kaprog PPLG</p>
-              <p className="text-[10px] text-outline font-medium truncate">SMKN 4 Payakumbuh</p>
+              <p className="text-xs font-bold text-on-surface truncate">{userData.name}</p>
+              <p className="text-[10px] text-outline font-medium truncate">{userData.role}</p>
             </div>
           </div>
           <button 
             onClick={handleLogout} 
             title="Keluar dari Akun"
-            className="p-1.5 text-outline hover:text-error hover:bg-error-container/40 rounded transition-colors cursor-pointer"
+            className="p-1.5 text-outline hover:text-error hover:bg-error-container/40 rounded transition-colors cursor-pointer shrink-0"
           >
             <LogOut className="w-4 h-4" />
           </button>

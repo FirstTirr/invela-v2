@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Package, AlertTriangle, ShieldCheck, LogOut } from 'lucide-react';
@@ -8,6 +8,38 @@ import { Separator } from "@/components/ui/separator";
 
 export default function SaprasLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+
+  // State User Dinamis
+  const [userData, setUserData] = useState({
+    name: 'Tim Sapras',
+    role: 'SMKN 4 Payakumbuh',
+    initials: 'SP'
+  });
+
+  useEffect(() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser);
+        const name = user.nama_lengkap || user.username || user.nama || 'Tim Sapras';
+        const role = user.role ? `Sapras - ${user.role.toUpperCase()}` : 'SMKN 4 Payakumbuh';
+        const initials = name.slice(0, 2).toUpperCase();
+
+        setUserData({ name, role, initials });
+      } else {
+        const username = localStorage.getItem('username');
+        if (username) {
+          setUserData({
+            name: username,
+            role: 'SMKN 4 Payakumbuh',
+            initials: username.slice(0, 2).toUpperCase()
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Gagal membaca data user:", e);
+    }
+  }, []);
 
   const saprasMenu = [
     { title: 'Dashboard Overview', href: '/sapras', icon: LayoutDashboard },
@@ -91,19 +123,19 @@ export default function SaprasLayout({ children }: { children: React.ReactNode }
         {/* Footer & Tombol Logout */}
         <div className="p-4 bg-surface-bright flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-md bg-emerald-600 text-white flex items-center justify-center font-bold text-sm">
-              SP
+            <div className="w-9 h-9 rounded-md bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+              {userData.initials}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-on-surface truncate">Tim Sapras</p>
-              <p className="text-[10px] text-outline font-medium truncate">SMKN 4 Payakumbuh</p>
+              <p className="text-xs font-bold text-on-surface truncate">{userData.name}</p>
+              <p className="text-[10px] text-outline font-medium truncate">{userData.role}</p>
             </div>
           </div>
           <button 
             type="button"
             onClick={handleLogout}
             title="Keluar / Logout"
-            className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer"
+            className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0"
           >
             <LogOut className="w-4 h-4" />
           </button>

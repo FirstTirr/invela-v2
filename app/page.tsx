@@ -78,6 +78,33 @@ const ROLES = [
   },
 ];
 
+const structuredData = {
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      name: "Invela Control",
+      url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+      description:
+        "Sistem manajemen inventaris laboratorium untuk pemakaian, peminjaman, laporan kerusakan, dan pemeliharaan aset sekolah.",
+    },
+    {
+      "@type": "SoftwareApplication",
+      name: "Invela Control",
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
+      description:
+        "Sistem manajemen inventaris laboratorium untuk pemakaian, peminjaman, laporan kerusakan, dan pemeliharaan aset sekolah.",
+      offers: {
+        "@type": "Offer",
+        price: "0",
+        priceCurrency: "IDR",
+      },
+    },
+  ],
+};
+
 export default function Home() {
   const router = useRouter();
   const [scrolled, setScrolled] = useState(false);
@@ -123,7 +150,7 @@ export default function Home() {
   // Helper Class Style untuk Mempersingkat Ternary Theme
   const theme = {
     bg: isLight ? "bg-slate-50 text-slate-900" : "bg-slate-950 text-white",
-    cardBg: isLight ? "bg-white border-slate-200 shadow-xl" : "bg-gradient-to-br from-slate-900 to-slate-950 border-white/10",
+    cardBg: isLight ? "bg-white border-slate-200 shadow-xl" : "bg-linear-to-br from-slate-900 to-slate-950 border-white/10",
     navBg: isLight ? "bg-white/80 border-slate-200 shadow-sm" : "bg-slate-900/80 border-white/10",
     textSub: isLight ? "text-slate-600" : "text-slate-400",
     textHead: isLight ? "text-slate-900" : "text-white",
@@ -144,6 +171,10 @@ export default function Home() {
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${theme.bg} selection:bg-cyan-500 selection:text-slate-900 overflow-x-hidden font-sans`}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
+      />
       {/* Background Ambient */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className={`absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full blur-[120px] ${isLight ? "bg-blue-400/20" : "bg-blue-600/20"}`} />
@@ -155,7 +186,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className={`mx-auto backdrop-blur-xl border rounded-2xl px-6 py-3 flex items-center justify-between transition-all duration-300 ${theme.navBg}`}>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/20 text-white font-bold">
+              <div className="w-10 h-10 flex items-center justify-center bg-linear-to-br from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/20 text-white font-bold">
                 <Boxes className="w-5 h-5" />
               </div>
               <span className={`text-xl font-bold tracking-tight ${theme.textHead}`}>
@@ -179,7 +210,7 @@ export default function Home() {
                 href={isLoggedIn && userRole ? `/${userRole}` : "/login"}
                 className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
                   isLoggedIn
-                    ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 hover:scale-105"
+                    ? "bg-linear-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 hover:scale-105"
                     : isLight ? "bg-slate-900 text-white hover:bg-slate-800" : "bg-white text-slate-900 hover:bg-cyan-50"
                 }`}
               >
@@ -228,7 +259,7 @@ export default function Home() {
 
           <h1 className={`text-5xl sm:text-7xl font-extrabold tracking-tight mb-8 leading-tight ${theme.textHead}`}>
             Inventaris Labor <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600">
+            <span className="text-transparent bg-clip-text bg-linear-to-r from-cyan-400 via-blue-500 to-purple-600">
               Berbasis Website Modern
             </span>
           </h1>
@@ -384,7 +415,7 @@ export default function Home() {
                 >
                   {/* Ambient Gradient Glow Background */}
                   <div
-                    className={`absolute inset-0 bg-gradient-to-br ${item.bgGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`}
+                    className={`absolute inset-0 bg-linear-to-br ${item.bgGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`}
                   />
 
                   {/* Top Section: Icon & Hover Arrow */}
@@ -420,7 +451,7 @@ export default function Home() {
                   </div>
 
                   {/* Bottom Subtle Light Bar */}
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-linear-to-r from-transparent via-cyan-400 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 </Link>
               );
             })}

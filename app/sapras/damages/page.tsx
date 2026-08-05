@@ -157,7 +157,7 @@ export default function SaprasDamagesPage() {
                       const itemInst = report.item_instance as any;
                       const namaBarang = itemInst?.perangkat?.nama_perangkat || itemInst?.perangkat?.nama || 'Perangkat';
                       const kodeUnit = itemInst?.kode_asset || itemInst?.kode_unit || `Unit #${report.id_item_instance}`;
-                      const namaPelapor = report.user?.name || report.user?.username || `User #${report.id_user}`;
+                      const namaPelapor = report.user?.name || report.user?.username || report.user?.email || `User #${report.id_user}`;
 
                       return (
                         <tr key={report.id} className="hover:bg-surface-low/30 transition-colors">

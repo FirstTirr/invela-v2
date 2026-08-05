@@ -3,11 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Package, AlertTriangle, ShieldCheck, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, AlertTriangle, ShieldCheck, LogOut, Menu, X } from 'lucide-react';
 import { Separator } from "@/components/ui/separator";
 
 export default function SaprasLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+
+  // State Mobile Sidebar Overlay
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // State User Dinamis
   const [userData, setUserData] = useState({
@@ -41,6 +44,11 @@ export default function SaprasLayout({ children }: { children: React.ReactNode }
     }
   }, []);
 
+  // Tutup menu mobile jika rute/halaman berubah
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
+
   const saprasMenu = [
     { title: 'Dashboard Overview', href: '/sapras', icon: LayoutDashboard },
     { title: 'Daftar Aset Sekolah', href: '/sapras/items', icon: Package },
@@ -72,22 +80,62 @@ export default function SaprasLayout({ children }: { children: React.ReactNode }
   };
 
   return (
-    <div className="min-h-screen bg-background text-on-surface antialiased flex selection:bg-secondary-container">
+    <div className="min-h-screen bg-background text-on-surface antialiased flex flex-col md:flex-row selection:bg-secondary-container">
       
-      {/* Sidebar Bawaan Premium */}
-      <aside className="fixed inset-y-0 left-0 w-[280px] bg-white border-r border-surface-container-high flex flex-col z-20">
-        
-        {/* Header */}
-        <div className="h-20 px-6 flex items-center gap-3 bg-white">
-          <div className="w-9 h-9 rounded bg-primary flex items-center justify-center text-white font-bold text-sm shadow-sm">
+      {/* Top Bar untuk Layar HP (Mobile Header) */}
+      <header className="md:hidden sticky top-0 z-30 bg-white border-b border-surface-container-high h-16 px-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-white font-bold text-xs shadow-sm">
             IN
           </div>
-          <div>
-            <h1 className="text-xs font-bold tracking-wider text-on-surface font-sans uppercase">INVELA CONTROL</h1>
-            <p className="text-[10px] font-semibold tracking-wider text-emerald-700 uppercase flex items-center gap-1 mt-0.5">
-              <ShieldCheck className="w-3 h-3 text-emerald-600" /> Sapras Authority
-            </p>
+          <span className="text-xs font-bold tracking-wider text-on-surface uppercase">INVELA CONTROL</span>
+        </div>
+        
+        <button
+          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          className="p-2 text-on-surface hover:bg-surface-low rounded-lg transition-colors cursor-pointer"
+          aria-label="Toggle Menu"
+        >
+          {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+        </button>
+      </header>
+
+      {/* Backdrop Gelap untuk Mobile saat Menu Terbuka */}
+      {isMobileMenuOpen && (
+        <div 
+          onClick={() => setIsMobileMenuOpen(false)} 
+          className="fixed inset-0 bg-on-surface/40 backdrop-blur-xs z-40 md:hidden"
+        />
+      )}
+
+      {/* Sidebar Responsive */}
+      <aside 
+        className={`fixed inset-y-0 left-0 w-[280px] bg-white border-r border-surface-container-high flex flex-col z-50 transition-transform duration-300 ease-in-out md:translate-x-0 ${
+          isMobileMenuOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        
+        {/* Sidebar Header */}
+        <div className="h-20 px-6 flex items-center justify-between bg-white shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded bg-primary flex items-center justify-center text-white font-bold text-sm shadow-sm">
+              IN
+            </div>
+            <div>
+              <h1 className="text-xs font-bold tracking-wider text-on-surface font-sans uppercase">INVELA CONTROL</h1>
+              <p className="text-[10px] font-semibold tracking-wider text-emerald-700 uppercase flex items-center gap-1 mt-0.5">
+                <ShieldCheck className="w-3 h-3 text-emerald-600" /> Sapras Authority
+              </p>
+            </div>
           </div>
+
+          {/* Tombol Close Khusus Layar HP */}
+          <button 
+            onClick={() => setIsMobileMenuOpen(false)}
+            className="md:hidden p-1.5 text-outline hover:text-on-surface rounded-md hover:bg-surface-low cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <Separator className="bg-surface-container-high" />
@@ -121,7 +169,7 @@ export default function SaprasLayout({ children }: { children: React.ReactNode }
         <Separator className="bg-surface-container-high" />
 
         {/* Footer & Tombol Logout */}
-        <div className="p-4 bg-surface-bright flex items-center justify-between">
+        <div className="p-4 bg-surface-bright flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-md bg-emerald-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
               {userData.initials}
@@ -143,8 +191,8 @@ export default function SaprasLayout({ children }: { children: React.ReactNode }
       </aside>
 
       {/* Wrapper Konten Utama */}
-      <div className="pl-[280px] w-full flex flex-col min-h-screen">
-        <main className="flex-1 p-10 max-w-7xl w-full mx-auto space-y-8">
+      <div className="w-full flex-1 md:pl-[280px] flex flex-col min-h-screen min-w-0">
+        <main className="flex-1 p-4 sm:p-6 md:p-10 max-w-7xl w-full mx-auto space-y-8">
           {children}
         </main>
       </div>

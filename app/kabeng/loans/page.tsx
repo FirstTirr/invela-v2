@@ -5,33 +5,14 @@ import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Plus, Loader2, CheckCircle, History } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
-import { apiPeminjaman } from '@/lib/api';
+import { apiPeminjaman, Peminjaman, CreatePeminjamanInput } from '@/lib/api';
 import LoanModal from './LoanModal';
-
-interface PeminjamanItem {
-  id: number;
-  id_item_instance: number;
-  nama_peminjam: string;
-  kelas?: string;
-  nomor_telepon: string;
-  tanggal_pinjam: string;
-  tanggal_kembali: string;
-  status: string;
-  item_instance?: {
-    kode_asset: string;
-    perangkat?: {
-      nama_perangkat?: string;
-      labor?: { id_jurusan?: number | string; jurusan_id?: number | string; };
-      id_jurusan?: number | string;
-    };
-  };
-}
 
 export default function KabengLoansPage() {
   const [isOpenModal, setIsOpenModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
-  const [loans, setLoans] = useState<PeminjamanItem[]>([]);
+  const [loans, setLoans] = useState<Peminjaman[]>([]);
 
   const fetchLoans = async () => {
     try {
@@ -41,9 +22,10 @@ export default function KabengLoansPage() {
       const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
 
       const data = await apiPeminjaman.getAll();
-      const filtered = (data || []).filter((loan: any) => {
-        if (loan.status !== 'aktif') return false;
+      const filtered = (data || []).filter((loan: Peminjaman) => {
+        if (loan.status === 'selesai') return false;
         if (!myJurusanId) return true;
+
         const itemJurusanId =
           loan.item_instance?.perangkat?.labor?.id_jurusan ||
           loan.item_instance?.perangkat?.labor?.jurusan_id ||
@@ -63,33 +45,48 @@ export default function KabengLoansPage() {
     fetchLoans();
   }, []);
 
-  const handleMarkAsDone = async (loan: PeminjamanItem) => {
+  const handleMarkAsDone = async (loan: Peminjaman) => {
     if (!confirm(`Apakah barang peminjaman "${loan.nama_peminjam}" sudah dikembalikan?`)) return;
     try {
       setUpdatingId(loan.id);
 
-      // Format tanggal_pinjam dan tanggal_kembali (YYYY-MM-DD)
-      const tglPinjam = loan.tanggal_pinjam ? loan.tanggal_pinjam.split('T')[0] : new Date().toISOString().split('T')[0];
-      const tglKembali = loan.tanggal_kembali ? loan.tanggal_kembali.split('T')[0] : tglPinjam;
-
-      // Kirim full payload yang valid untuk menghindari HTTP 400 Validation Error
-      const payload = {
-        id_item_instance: loan.id_item_instance,
-        nama_peminjam: loan.nama_peminjam,
-        kelas: loan.kelas || '',
-        nomor_telepon: loan.nomor_telepon,
-        tanggal_pinjam: tglPinjam,
-        tanggal_kembali: tglKembali,
+      await apiPeminjaman.update(loan.id, {
         status: 'selesai'
-      };
+      });
 
-      await apiPeminjaman.update(loan.id, payload as any);
       fetchLoans();
     } catch (err: any) {
       alert(err.message || 'Gagal mengubah status peminjaman');
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  // Handler yang cocok dengan signature props onSubmitLoan milik LoanModal
+  const handleCreateLoan = async (data: {
+    id_item_instance: number;
+    nama_peminjam: string;
+    kelas: string;
+    nomor_telepon: string;
+    tanggal_pinjam: string;
+    tanggal_kembali: string;
+    status: string;
+  }) => {
+    const payload: CreatePeminjamanInput = {
+      id_item_instance: data.id_item_instance,
+      nama_peminjam: data.nama_peminjam,
+      kelas: data.kelas,
+      nomor_telepon: data.nomor_telepon,
+      tanggal_pinjam: data.tanggal_pinjam,
+      tanggal_kembali: data.tanggal_kembali,
+      status: data.status as 'aktif' | 'selesai' | 'melewati batas waktu',
+    };
+    await apiPeminjaman.create(payload);
+  };
+
+  const formatDateDisplay = (dateStr?: string) => {
+    if (!dateStr) return '-';
+    return dateStr.split('T')[0];
   };
 
   return (
@@ -125,7 +122,7 @@ export default function KabengLoansPage() {
                   <th className="p-5 text-sm font-bold text-on-surface uppercase">Kelas</th>
                   <th className="p-5 text-sm font-bold text-on-surface uppercase text-center">Tgl Mulai</th>
                   <th className="p-5 text-sm font-bold text-on-surface uppercase text-center">Tgl Selesai</th>
-                  <th className="p-5 text-sm font-bold text-on-surface uppercase text-center">Status</th>
+                  <th className="p-5 text-sm font-bold text-on-surface uppercase text-center">Aksi / Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container font-semibold">
@@ -143,16 +140,26 @@ export default function KabengLoansPage() {
                         <span className="block text-xs text-outline font-normal">{loan.nomor_telepon}</span>
                       </td>
                       <td className="p-5">{loan.kelas || '-'}</td>
-                      <td className="p-5 text-center font-mono text-outline">{loan.tanggal_pinjam?.split('T')[0]}</td>
-                      <td className="p-5 text-center font-mono text-outline">{loan.tanggal_kembali?.split('T')[0]}</td>
+                      <td className="p-5 text-center font-mono text-outline">{formatDateDisplay(loan.tanggal_pinjam)}</td>
+                      <td className="p-5 text-center font-mono text-outline">{formatDateDisplay(loan.tanggal_kembali)}</td>
                       <td className="p-5 text-center">
                         <button
                           onClick={() => handleMarkAsDone(loan)}
                           disabled={updatingId === loan.id}
-                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold border bg-blue-50 text-blue-800 border-blue-300 hover:bg-emerald-100 hover:text-emerald-900 cursor-pointer"
+                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
+                            loan.status === 'melewati batas waktu' 
+                              ? 'bg-red-50 text-red-800 border-red-300 hover:bg-red-100' 
+                              : 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-emerald-100 hover:text-emerald-900'
+                          }`}
                         >
-                          {updatingId === loan.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle className="w-3.5 h-3.5 text-blue-600" />}
-                          <span>Aktif (Tandai Selesai)</span>
+                          {updatingId === loan.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <CheckCircle className="w-3.5 h-3.5 text-blue-600" />
+                          )}
+                          <span>
+                            {loan.status === 'melewati batas waktu' ? 'Terlambat (Tandai Selesai)' : 'Aktif (Tandai Selesai)'}
+                          </span>
                         </button>
                       </td>
                     </tr>
@@ -169,7 +176,7 @@ export default function KabengLoansPage() {
             <LoanModal
               onClose={() => setIsOpenModal(false)}
               onSuccess={() => { setIsOpenModal(false); fetchLoans(); }}
-              onSubmitLoan={(payload) => apiPeminjaman.create(payload as any)}
+              onSubmitLoan={handleCreateLoan}
             />
           )}
         </AnimatePresence>

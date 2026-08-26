@@ -15,7 +15,8 @@ interface PeminjamanItem {
   nama_peminjam: string;
   nomor_telepon: string;
   tanggal_pinjam: string;
-  tanggal_kembali: string; // Ini sekarang berisi tanggal aktual dikembalikan
+  tanggal_kembali: string; // Batas target pengembalian
+  actual_return_date?: string; // Tanggal aktual pengembalian dari Backend Go
   tanggal_dikembalikan?: string;
   updated_at?: string;
   status: string;
@@ -105,9 +106,11 @@ export default function KabengCompletedLoansPage() {
     }
   };
 
-  // Mengambil tanggal pengembalian aktual
+  // Mengambil tanggal pengembalian aktual dengan prioritas yang benar
   const getReturnDate = (loan: PeminjamanItem) => {
-    const rawDate = loan.tanggal_dikembalikan || loan.tanggal_kembali || loan.updated_at;
+    // Prioritaskan actual_return_date / tanggal_dikembalikan / updated_at
+    // JANGAN utamakan tanggal_kembali karena itu adalah batas target pengembalian
+    const rawDate = loan.actual_return_date || loan.tanggal_dikembalikan || loan.updated_at || loan.tanggal_kembali;
     return formatDate(rawDate);
   };
 

@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, PackagePlus, ClipboardList, 
   AlertTriangle, User, LogOut, Menu, X, MonitorCheck, History,
-  ChevronDown
+  ChevronDown, PanelLeftClose, PanelRightClose
 } from 'lucide-react';
 
 interface SubMenuItem {
@@ -24,6 +24,7 @@ interface MenuItem {
 
 export default function KabengLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   const [openLoansDropdown, setOpenLoansDropdown] = useState(false);
@@ -91,7 +92,7 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
 
   const kabengMenu: MenuItem[] = [
     { title: 'Dashboard Overview', href: '/kabeng', icon: LayoutDashboard },
-    { title: 'Kelola & Perbaikan Barang', href: '/kabeng/items', icon: PackagePlus },
+    { title: 'Kelola Barang', href: '/kabeng/items', icon: PackagePlus },
     { title: 'Penggunaan Labor', href: '/kabeng/penggunaan', icon: MonitorCheck },
     {
       title: 'Peminjaman Barang',
@@ -111,21 +112,37 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
     },
   ];
 
-  const SidebarContent = () => (
-    <div className="flex flex-col h-full justify-between p-5 font-sans">
+  const SidebarContent = ({ isMobile = false }: { isMobile?: boolean }) => (
+    <div className="flex flex-col h-full justify-between p-5 font-sans bg-white">
       <div className="space-y-7">
-        <div className="flex items-center gap-3 px-2">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-primary-container flex items-center justify-center text-white font-black text-lg shadow-sm shrink-0">
-            IN
+        {/* Header Sidebar */}
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-primary-container flex items-center justify-center text-white font-black text-lg shadow-sm shrink-0">
+              IN
+            </div>
+            <div>
+              <h1 className="text-sm font-black tracking-tight text-on-surface uppercase leading-none">INVELA CONTROL</h1>
+              <p className="text-xs font-bold tracking-wider text-primary uppercase flex items-center gap-1 mt-1.5">
+                <User className="w-3.5 h-3.5 text-primary" /> Kabeng Workspace
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-sm font-black tracking-tight text-on-surface uppercase leading-none">INVELA CONTROL</h1>
-            <p className="text-xs font-bold tracking-wider text-primary uppercase flex items-center gap-1 mt-1.5">
-              <User className="w-3.5 h-3.5 text-primary" /> Kabeng Workspace
-            </p>
-          </div>
+
+          {/* Tombol Tutup Sidebar Desktop */}
+          {!isMobile && (
+            <button
+              type="button"
+              onClick={() => setIsSidebarOpen(false)}
+              title="Tutup Sidebar"
+              className="p-1.5 text-outline hover:text-on-surface hover:bg-surface-low rounded-lg transition-colors cursor-pointer"
+            >
+              <PanelLeftClose className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
+        {/* Menu Navigasi */}
         <nav className="space-y-1.5">
           <p className="px-3 mb-3 text-xs font-bold tracking-wider text-outline uppercase">
             Bengkel Operations
@@ -208,6 +225,7 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
         </nav>
       </div>
 
+      {/* User Profile Footer */}
       <div className="border-t border-surface-container pt-4 flex items-center justify-between bg-white">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-black text-sm shrink-0">
@@ -231,11 +249,33 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen bg-background text-on-surface antialiased flex selection:bg-secondary-container">
-      <aside className="hidden lg:block w-72 bg-white border-r border-surface-container-high shrink-0 h-screen sticky top-0 z-20">
-        <SidebarContent />
+      
+      {/* Sidebar Desktop Collapsible */}
+      <aside 
+        className={`hidden lg:block bg-white border-r border-surface-container-high shrink-0 h-screen sticky top-0 z-20 transition-all duration-300 ease-in-out ${
+          isSidebarOpen ? 'w-72 opacity-100' : 'w-0 opacity-0 overflow-hidden border-none'
+        }`}
+      >
+        <div className="w-72 h-full">
+          <SidebarContent isMobile={false} />
+        </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen relative">
+        
+        {/* Tombol Buka Sidebar Desktop Saat Tertutup */}
+        {!isSidebarOpen && (
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            title="Buka Sidebar"
+            className="hidden lg:flex fixed top-5 left-5 z-30 p-2.5 bg-white border border-surface-container-high shadow-md rounded-xl text-on-surface hover:text-primary hover:bg-surface-low transition-all cursor-pointer items-center justify-center"
+          >
+            <PanelRightClose className="w-5 h-5" />
+          </button>
+        )}
+
+        {/* Header Mobile */}
         <header className="lg:hidden w-full bg-white border-b border-surface-container px-5 py-4 flex justify-between items-center sticky top-0 z-40 shadow-sm">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-black text-sm">
@@ -254,6 +294,7 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
           </button>
         </header>
 
+        {/* Modal Drawer Mobile */}
         {isMobileOpen && (
           <div className="fixed inset-0 z-50 lg:hidden flex">
             <div 
@@ -271,12 +312,13 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto pt-4">
-                <SidebarContent />
+                <SidebarContent isMobile={true} />
               </div>
             </div>
           </div>
         )}
 
+        {/* Main Content Area */}
         <main className="flex-1 p-5 sm:p-8 md:p-10 max-w-7xl w-full mx-auto">
           {children}
         </main>

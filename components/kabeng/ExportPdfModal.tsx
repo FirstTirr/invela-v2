@@ -5,7 +5,7 @@ import { X, FileText, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Labor } from '@/lib/api';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import autoTable, { RowInput } from 'jspdf-autotable';
 
 interface ExportPdfModalProps {
   isOpen: boolean;
@@ -61,63 +61,75 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
       doc.text(laborName.toUpperCase(), doc.internal.pageSize.getWidth() / 2, 35, { align: "center" });
       doc.text(`Tahun Ajaran: ${tahunAjaran}`, doc.internal.pageSize.getWidth() / 2, 42, { align: "center" });
 
-      // Tabel Data
-      const tableColumn = ["No", "Nama Barang", "Jumlah", "Baik", "Rusak", "Keterangan"];
-      const tableRows: any[] = [];
+      // Structure Header Bertingkat dengan Tipe RowInput[]
+      const tableHead: RowInput[] = [
+        [
+          { content: 'No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+          { content: 'Nama Barang', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+          { content: 'Jumlah', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+          { content: 'KONDISI / STATUS', colSpan: 3, styles: { halign: 'center', valign: 'middle' } },
+          { content: 'Keterangan', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
+        ],
+        [
+          { content: 'Baik', styles: { halign: 'center', valign: 'middle' } },
+          { content: 'Dipinjam', styles: { halign: 'center', valign: 'middle' } },
+          { content: 'Rusak', styles: { halign: 'center', valign: 'middle' } },
+        ]
+      ];
+
+      // Baris Data
+      const tableRows: RowInput[] = [];
 
       filteredItems.forEach((item, index) => {
-        const baikCount = item.instances ? item.instances.filter((i: any) => i.status === 'aktif').length : item.jumlah_stok;
-        const rusakCount = item.instances ? item.instances.filter((i: any) => i.status === 'rusak' || i.status === 'perbaikan').length : 0;
-
-        const baikText = baikCount > 0 ? "CHECKED" : "-";
-        const rusakText = rusakCount > 0 ? `${rusakCount}` : "-";
+        const instances = item.instances || [];
+        
+        const baikCount = item.jumlah_baik ?? instances.filter((i: any) => i.status === 'aktif' || i.status === 'baik').length;
+        const dipinjamCount = item.jumlah_dipinjam ?? instances.filter((i: any) => i.status === 'dipinjam').length;
+        const rusakCount = item.jumlah_rusak ?? instances.filter((i: any) => i.status === 'rusak' || i.status === 'perbaikan' || i.status === 'nonaktif').length;
 
         tableRows.push([
           index + 1,
           item.nama_perangkat || item.namaPerangkat,
           item.jumlah_stok || item.jumlahStok || 0,
-          baikText,
-          rusakText,
+          baikCount > 0 ? baikCount : "0",
+          dipinjamCount > 0 ? dipinjamCount : "0",
+          rusakCount > 0 ? rusakCount : "0",
           item.deskripsi || ""
         ]);
       });
 
       autoTable(doc, {
         startY: 50,
-        head: [tableColumn],
+        head: tableHead,
         body: tableRows,
         theme: 'grid',
         headStyles: { 
-          fillColor: [30, 41, 59], 
+          fillColor: [30, 41, 59],
           textColor: [255, 255, 255], 
-          fontStyle: 'bold', 
-          halign: 'center' 
+          fontStyle: 'bold',
+          fontSize: 9,
+          lineWidth: 0.1,
+          lineColor: [200, 200, 200]
         },
         columnStyles: {
-          0: { halign: 'center', cellWidth: 12 },
-          2: { halign: 'center', cellWidth: 20 },
-          3: { halign: 'center', cellWidth: 20 }, // Kolom Baik
-          4: { halign: 'center', cellWidth: 20 }, // Kolom Rusak
+          0: { halign: 'center', cellWidth: 10 },
+          1: { halign: 'left', cellWidth: 60 },
+          2: { halign: 'center', cellWidth: 18, fontStyle: 'bold' },
+          3: { halign: 'center', cellWidth: 16, textColor: [22, 101, 52] },
+          4: { halign: 'center', cellWidth: 20, textColor: [180, 83, 9] },
+          5: { halign: 'center', cellWidth: 16, textColor: [185, 28, 28] },
+          6: { halign: 'left', cellWidth: 'auto' },
         },
-        styles: { fontSize: 10, cellPadding: 4, valign: 'middle' },
-        margin: { bottom: 65 },
-
-        // RENDER CENTANG HITAM PRESISI
+        styles: { 
+          fontSize: 8.5, 
+          cellPadding: 3, 
+          valign: 'middle',
+          overflow: 'linebreak'
+        },
+        margin: { left: 14, right: 14, bottom: 65 },
         didParseCell: (data) => {
-          if (data.section === 'body' && data.column.index === 3 && data.cell.raw === 'CHECKED') {
-            data.cell.text = [''];
-          }
-        },
-        didDrawCell: (data) => {
-          if (data.section === 'body' && data.column.index === 3 && data.cell.raw === 'CHECKED') {
-            const x = data.cell.x + data.cell.width / 2;
-            const y = data.cell.y + data.cell.height / 2;
-
-            doc.setDrawColor(0, 0, 0); // Hitam Pekat
-            doc.setLineWidth(0.9);
-
-            doc.line(x - 2.5, y - 0.2, x - 0.8, y + 1.8);
-            doc.line(x - 0.8, y + 1.8, x + 2.5, y - 2.2);
+          if (data.section === 'head' && data.row.index === 1) {
+            data.cell.styles.fillColor = [51, 65, 85];
           }
         }
       });

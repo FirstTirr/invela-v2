@@ -21,7 +21,7 @@ interface DisplayItem {
   instances: ItemInstance[];
 }
 
-export default function KaprogItemsPage() {
+export default function SaprasItemsPage() {
   const [items, setItems] = useState<DisplayItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string>('');
@@ -78,9 +78,10 @@ export default function KaprogItemsPage() {
         });
 
         setItems(combined);
-      } catch (err: any) {
+      } catch (err) {
         console.error("Gagal memuat inventaris:", err);
-        setError(err.message || 'Gagal memuat data inventaris');
+        const message = err instanceof Error ? err.message : 'Gagal memuat data inventaris';
+        setError(message);
       } finally {
         setLoading(false);
       }
@@ -197,7 +198,7 @@ export default function KaprogItemsPage() {
                       <td className="p-5 text-right">
                         <button
                           onClick={() => handleOpenModal(item)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-blue-600 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-bold transition-colors"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-blue-600 text-blue-600 hover:bg-blue-50 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                         >
                           <Eye className="w-3.5 h-3.5" />
                           Lihat Unit
@@ -227,7 +228,7 @@ export default function KaprogItemsPage() {
                 </div>
                 <button
                   onClick={handleCloseModal}
-                  className="p-1 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-high transition-colors"
+                  className="p-1 rounded-lg text-outline hover:text-on-surface hover:bg-surface-container-high transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -276,7 +277,7 @@ export default function KaprogItemsPage() {
               <div className="p-4 border-t border-surface-container-high bg-surface-low flex justify-end">
                 <button
                   onClick={handleCloseModal}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-bold transition-colors"
+                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-lg text-xs font-bold transition-colors cursor-pointer"
                 >
                   Tutup
                 </button>

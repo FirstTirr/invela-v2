@@ -6,11 +6,26 @@ import { History, X, Coins, CheckCircle2, Loader2, AlertCircle } from 'lucide-re
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiKerusakan, apiRiwayatPerbaikan, Kerusakan, RiwayatPerbaikan } from '@/lib/api';
 
+type ExtendedKerusakan = Omit<Kerusakan, 'item_instance' | 'user'> & {
+  item_instance?: {
+    kode_asset?: string;
+    kode_unit?: string;
+    perangkat?: {
+      nama_perangkat?: string;
+      nama?: string;
+    };
+  };
+  user?: {
+    name?: string;
+    username?: string;
+  };
+};
+
 export default function KaprogDamagesPage() {
   const [isOpenHistoryModal, setIsOpenHistoryModal] = useState(false);
-  const [selectedReport, setSelectedReport] = useState<Kerusakan | null>(null);
+  const [selectedReport, setSelectedReport] = useState<ExtendedKerusakan | null>(null);
 
-  const [damages, setDamages] = useState<Kerusakan[]>([]);
+  const [damages, setDamages] = useState<ExtendedKerusakan[]>([]);
   const [allHistory, setAllHistory] = useState<RiwayatPerbaikan[]>([]);
   const [unitHistory, setUnitHistory] = useState<RiwayatPerbaikan[]>([]);
   
@@ -27,21 +42,58 @@ export default function KaprogDamagesPage() {
         apiRiwayatPerbaikan.getAll(),
       ]);
 
-      setDamages(dataKerusakan || []);
+      setDamages((dataKerusakan || []) as unknown as ExtendedKerusakan[]);
       setAllHistory(dataRiwayat || []);
-    } catch (err: any) {
-      console.error("Gagal mengambil data kaprog:", err);
-      setErrorMsg(err.message || "Gagal memuat data kerusakan.");
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setErrorMsg(err.message);
+      } else {
+        setErrorMsg("Gagal memuat data kerusakan.");
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    let isMounted = true;
+
+    const loadInitialData = async () => {
+      try {
+        setIsLoading(true);
+        setErrorMsg('');
+        const [dataKerusakan, dataRiwayat] = await Promise.all([
+          apiKerusakan.getAll(),
+          apiRiwayatPerbaikan.getAll(),
+        ]);
+
+        if (isMounted) {
+          setDamages((dataKerusakan || []) as unknown as ExtendedKerusakan[]);
+          setAllHistory(dataRiwayat || []);
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          if (err instanceof Error) {
+            setErrorMsg(err.message);
+          } else {
+            setErrorMsg("Gagal memuat data kerusakan.");
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    loadInitialData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
-  const handleOpenHistoryModal = async (report: Kerusakan) => {
+  const handleOpenHistoryModal = async (report: ExtendedKerusakan) => {
     setSelectedReport(report);
     setIsOpenHistoryModal(true);
     setIsLoadingHistory(true);
@@ -55,7 +107,7 @@ export default function KaprogDamagesPage() {
       } else {
         setUnitHistory([]);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Gagal mengambil detail riwayat:", err);
       setUnitHistory([]);
     } finally {
@@ -128,7 +180,7 @@ export default function KaprogDamagesPage() {
             <div className="p-8 text-center space-y-3">
               <AlertCircle className="w-10 h-10 text-error mx-auto" />
               <p className="text-base font-bold text-error">{errorMsg}</p>
-              <button onClick={fetchData} className="px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg">Coba Lagi</button>
+              <button onClick={fetchData} className="px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg cursor-pointer">Coba Lagi</button>
             </div>
           ) : (
             <div className="overflow-x-auto w-full">
@@ -152,7 +204,7 @@ export default function KaprogDamagesPage() {
                     </tr>
                   ) : (
                     damages.map((report) => {
-                      const itemInst = report.item_instance as any;
+                      const itemInst = report.item_instance;
                       const namaBarang = itemInst?.perangkat?.nama_perangkat || itemInst?.perangkat?.nama || 'Perangkat';
                       const kodeUnit = itemInst?.kode_asset || itemInst?.kode_unit || `Unit #${report.id_item_instance}`;
                       const namaPelapor = report.user?.name || report.user?.username || `User #${report.id_user}`;
@@ -206,7 +258,7 @@ export default function KaprogDamagesPage() {
                   <div>
                     <h3 className="text-xl font-bold text-on-surface">Detail Nota & Riwayat Tindakan</h3>
                     <p className="text-base text-error font-bold mt-1">
-                      {((selectedReport.item_instance as any)?.perangkat?.nama_perangkat || (selectedReport.item_instance as any)?.perangkat?.nama) || 'Perangkat'} (
+                      {(selectedReport.item_instance?.perangkat?.nama_perangkat || selectedReport.item_instance?.perangkat?.nama) || 'Perangkat'} (
                       {selectedReport.item_instance?.kode_asset || `ID ${selectedReport.id_item_instance}`}
                       )
                     </p>

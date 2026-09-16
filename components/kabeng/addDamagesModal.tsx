@@ -5,6 +5,23 @@ import { motion } from 'framer-motion';
 import { X, Package, Cpu, Loader2, Search, ChevronDown, Check, AlertTriangle } from 'lucide-react';
 import { apiPerangkat, apiItemInstance, apiKerusakan, Perangkat, ItemInstance } from '@/lib/api';
 
+// Interface pembantu untuk mencakup variasi response API
+interface ExtendedPerangkat extends Partial<Perangkat> {
+  id: number;
+  nama_perangkat?: string;
+  nama?: string;
+}
+
+interface ExtendedItemInstance extends Partial<ItemInstance> {
+  id: number;
+  id_perangkat?: number;
+  idPerangkat?: number;
+  perangkat?: { id: number };
+  kode_asset?: string;
+  kode_unit?: string;
+  status?: string;
+}
+
 interface AddDamageModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -12,8 +29,8 @@ interface AddDamageModalProps {
 }
 
 export default function AddDamageModal({ isOpen, onClose, onSuccess }: AddDamageModalProps) {
-  const [perangkatList, setPerangkatList] = useState<Perangkat[]>([]);
-  const [instanceList, setInstanceList] = useState<ItemInstance[]>([]);
+  const [perangkatList, setPerangkatList] = useState<ExtendedPerangkat[]>([]);
+  const [instanceList, setInstanceList] = useState<ExtendedItemInstance[]>([]);
   const [selectedPerangkatId, setSelectedPerangkatId] = useState<number | ''>('');
   const [selectedInstanceId, setSelectedInstanceId] = useState<number | ''>('');
   const [deskripsi, setDeskripsi] = useState('');
@@ -36,8 +53,8 @@ export default function AddDamageModal({ isOpen, onClose, onSuccess }: AddDamage
       try {
         setIsLoading(true);
         const [pData, iData] = await Promise.all([apiPerangkat.getAll(), apiItemInstance.getAll()]);
-        setPerangkatList(pData || []);
-        setInstanceList(iData || []);
+        setPerangkatList((pData as ExtendedPerangkat[]) || []);
+        setInstanceList((iData as ExtendedItemInstance[]) || []);
       } catch (err) {
         console.error("Gagal memuat inventaris:", err);
       } finally {
@@ -65,25 +82,25 @@ export default function AddDamageModal({ isOpen, onClose, onSuccess }: AddDamage
     onClose();
   };
 
-  const filteredPerangkat = perangkatList.filter((p: any) => 
+  const filteredPerangkat = perangkatList.filter((p) => 
     (p.nama_perangkat || p.nama || '').toLowerCase().includes(searchPerangkat.toLowerCase())
   );
 
-  const availableInstances = instanceList.filter((inst: any) => 
+  const availableInstances = instanceList.filter((inst) => 
     Number(inst.id_perangkat || inst.idPerangkat || inst.perangkat?.id) === Number(selectedPerangkatId)
   );
 
-  const filteredInstances = availableInstances.filter((inst: any) => 
+  const filteredInstances = availableInstances.filter((inst) => 
     (inst.kode_asset || inst.kode_unit || `Unit #${inst.id}`).toLowerCase().includes(searchInstance.toLowerCase())
   );
 
   const getPerangkatLabel = () => {
-    const p: any = perangkatList.find((item) => Number(item.id) === Number(selectedPerangkatId));
+    const p = perangkatList.find((item) => Number(item.id) === Number(selectedPerangkatId));
     return p ? (p.nama_perangkat || p.nama) : '-- Pilih Barang / Perangkat --';
   };
 
   const getInstanceLabel = () => {
-    const inst: any = availableInstances.find((item) => Number(item.id) === Number(selectedInstanceId));
+    const inst = availableInstances.find((item) => Number(item.id) === Number(selectedInstanceId));
     return inst ? `${inst.kode_asset || inst.kode_unit || `Unit #${inst.id}`} (${inst.status || 'Aktif'})` : '-- Pilih Kode Unit Spesifik --';
   };
 
@@ -100,8 +117,9 @@ export default function AddDamageModal({ isOpen, onClose, onSuccess }: AddDamage
       alert('Laporan kerusakan berhasil dibuat!');
       resetAndClose();
       onSuccess();
-    } catch (err: any) {
-      alert(err.message || 'Gagal mengirim laporan');
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Gagal mengirim laporan';
+      alert(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -134,7 +152,7 @@ export default function AddDamageModal({ isOpen, onClose, onSuccess }: AddDamage
                 <div className="absolute z-30 w-full mt-1 bg-white border rounded-lg shadow-lg p-2 max-h-48 overflow-hidden flex flex-col">
                   <div className="relative mb-2"><Search className="w-3.5 h-3.5 text-outline absolute left-2.5 top-2.5" /><input type="text" placeholder="Cari..." value={searchPerangkat} onChange={(e) => setSearchPerangkat(e.target.value)} className="w-full pl-8 pr-2 py-1 text-xs border rounded-md" autoFocus /></div>
                   <div className="overflow-y-auto space-y-0.5 flex-1">
-                    {filteredPerangkat.map((p: any) => (
+                    {filteredPerangkat.map((p) => (
                       <div key={p.id} onClick={() => { setSelectedPerangkatId(p.id); setSelectedInstanceId(''); setIsPerangkatOpen(false); }} className={`px-2.5 py-1.5 text-xs rounded-md cursor-pointer flex justify-between ${Number(p.id) === Number(selectedPerangkatId) ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-surface-low'}`}>
                         {p.nama_perangkat || p.nama} {Number(p.id) === Number(selectedPerangkatId) && <Check className="w-3.5 h-3.5" />}
                       </div>
@@ -157,7 +175,7 @@ export default function AddDamageModal({ isOpen, onClose, onSuccess }: AddDamage
                 <div className="absolute z-30 w-full mt-1 bg-white border rounded-lg shadow-lg p-2 max-h-48 overflow-hidden flex flex-col">
                   <div className="relative mb-2"><Search className="w-3.5 h-3.5 text-outline absolute left-2.5 top-2.5" /><input type="text" placeholder="Cari unit..." value={searchInstance} onChange={(e) => setSearchInstance(e.target.value)} className="w-full pl-8 pr-2 py-1 text-xs border rounded-md" autoFocus /></div>
                   <div className="overflow-y-auto space-y-0.5 flex-1">
-                    {filteredInstances.map((inst: any) => (
+                    {filteredInstances.map((inst) => (
                       <div key={inst.id} onClick={() => { setSelectedInstanceId(inst.id); setIsInstanceOpen(false); }} className={`px-2.5 py-1.5 text-xs rounded-md cursor-pointer flex justify-between ${Number(inst.id) === Number(selectedInstanceId) ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-surface-low'}`}>
                         {inst.kode_asset || inst.kode_unit || `Unit #${inst.id}`} {Number(inst.id) === Number(selectedInstanceId) && <Check className="w-3.5 h-3.5" />}
                       </div>

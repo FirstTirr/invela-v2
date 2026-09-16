@@ -9,67 +9,29 @@ import {
 } from 'lucide-react';
 import { Separator } from "@/components/ui/separator";
 
-export default function GuruLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+const guruMenu = [
+  { title: 'Lapor Pemakaian Labor', href: '/guru', icon: ClipboardList },
+  { title: 'Lapor Kerusakan Barang', href: '/guru/damages', icon: AlertTriangle },
+];
 
-  const [userData, setUserData] = useState({
-    name: 'Tenaga Pendidik',
-    role: 'Guru SMKN 4 Payakumbuh',
-    initials: 'TE'
-  });
+interface SidebarContentProps {
+  isMobile?: boolean;
+  pathname: string;
+  userData: { name: string; role: string; initials: string };
+  setIsSidebarOpen: (open: boolean) => void;
+  setIsMobileOpen: (open: boolean) => void;
+  onLogout: (e?: React.MouseEvent) => void;
+}
 
-  useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        const name = user.nama_lengkap || user.username || user.nama || 'Tenaga Pendidik';
-        const role = user.role ? `Guru - ${user.role.toUpperCase()}` : 'Guru / Tenaga Pendidik';
-        const initials = name.slice(0, 2).toUpperCase();
-
-        setUserData({ name, role, initials });
-      } else {
-        const username = localStorage.getItem('username');
-        if (username) {
-          setUserData({
-            name: username,
-            role: 'Guru / Tenaga Pendidik',
-            initials: username.slice(0, 2).toUpperCase()
-          });
-        }
-      }
-    } catch (e) {
-      console.error("Gagal membaca data user:", e);
-    }
-  }, []);
-
-  const guruMenu = [
-    { title: 'Lapor Pemakaian Labor', href: '/guru', icon: ClipboardList },
-    { title: 'Lapor Kerusakan Barang', href: '/guru/damages', icon: AlertTriangle },
-  ];
-
-  const handleLogout = (e?: React.MouseEvent) => {
-    if (e) e.preventDefault();
-    if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
-
-    localStorage.clear();
-    sessionStorage.clear();
-
-    const cookies = document.cookie.split(";");
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i];
-      const eqPos = cookie.indexOf("=");
-      const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
-    }
-
-    window.location.href = '/login';
-  };
-
-  const SidebarContent = ({ isMobile = false }: { isMobile?: boolean }) => (
+function SidebarContent({
+  isMobile = false,
+  pathname,
+  userData,
+  setIsSidebarOpen,
+  setIsMobileOpen,
+  onLogout
+}: SidebarContentProps) {
+  return (
     <div className="flex flex-col h-full justify-between bg-white">
       <div>
         {/* Header Sidebar */}
@@ -86,7 +48,6 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
 
-          {/* Tombol Tutup untuk Desktop */}
           {!isMobile && (
             <button
               type="button"
@@ -145,7 +106,8 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
           </div>
 
           <button 
-            onClick={handleLogout}
+            type="button"
+            onClick={onLogout}
             title="Keluar / Logout"
             className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0"
           >
@@ -155,18 +117,84 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
       </div>
     </div>
   );
+}
+
+export default function GuruLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  const [userData, setUserData] = useState({
+    name: 'Tenaga Pendidik',
+    role: 'Guru SMKN 4 Payakumbuh',
+    initials: 'TE'
+  });
+
+  useEffect(() => {
+    const loadUserData = () => {
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          const name = user.nama_lengkap || user.username || user.nama || 'Tenaga Pendidik';
+          const role = user.role ? `Guru - ${user.role.toUpperCase()}` : 'Guru / Tenaga Pendidik';
+          const initials = name.slice(0, 2).toUpperCase();
+          setUserData({ name, role, initials });
+          return;
+        }
+        const username = localStorage.getItem('username');
+        if (username) {
+          setUserData({
+            name: username,
+            role: 'Guru / Tenaga Pendidik',
+            initials: username.slice(0, 2).toUpperCase()
+          });
+        }
+      } catch (e: unknown) {
+        console.error("Gagal membaca data user:", e);
+      }
+    };
+
+    loadUserData();
+  }, []);
+
+  const handleLogout = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
+    if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
+
+    localStorage.clear();
+    sessionStorage.clear();
+
+    const cookies = document.cookie.split(";");
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i];
+      const eqPos = cookie.indexOf("=");
+      const name = eqPos > -1 ? cookie.substring(0, eqPos).trim() : cookie.trim();
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+    }
+
+    window.location.href = '/login';
+  };
 
   return (
     <div className="min-h-screen bg-background text-on-surface antialiased flex flex-col lg:flex-row selection:bg-secondary-container">
       
-      {/* Sidebar Desktop Collapsible (Hanya Muncul di Layar Laptop/Desktop `lg:block`) */}
+      {/* Sidebar Desktop Collapsible */}
       <aside 
         className={`hidden lg:block fixed inset-y-0 left-0 bg-white border-r border-surface-container-high z-20 transition-all duration-300 ease-in-out ${
           isSidebarOpen ? 'w-[280px] opacity-100' : 'w-0 opacity-0 overflow-hidden border-none'
         }`}
       >
         <div className="w-[280px] h-full">
-          <SidebarContent isMobile={false} />
+          <SidebarContent 
+            isMobile={false}
+            pathname={pathname}
+            userData={userData}
+            setIsSidebarOpen={setIsSidebarOpen}
+            setIsMobileOpen={setIsMobileOpen}
+            onLogout={handleLogout}
+          />
         </div>
       </aside>
 
@@ -176,7 +204,7 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
           isSidebarOpen ? 'lg:pl-[280px]' : 'lg:pl-0'
         }`}
       >
-        {/* Header Mobile (Hanya Muncul di HP/Tablet `lg:hidden`) */}
+        {/* Header Mobile */}
         <header className="lg:hidden w-full bg-white border-b border-surface-container px-5 py-4 flex justify-between items-center sticky top-0 z-40 shadow-sm">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-white font-bold text-xs shadow-sm">
@@ -188,7 +216,6 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
             </div>
           </div>
 
-          {/* Tombol Hamburger */}
           <button
             type="button"
             onClick={() => setIsMobileOpen(true)}
@@ -198,7 +225,7 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
           </button>
         </header>
 
-        {/* Modal Drawer Mobile (Tampil saat Hamburger diklik) */}
+        {/* Modal Drawer Mobile */}
         {isMobileOpen && (
           <div className="fixed inset-0 z-50 lg:hidden flex">
             <div 
@@ -216,7 +243,14 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto">
-                <SidebarContent isMobile={true} />
+                <SidebarContent 
+                  isMobile={true}
+                  pathname={pathname}
+                  userData={userData}
+                  setIsSidebarOpen={setIsSidebarOpen}
+                  setIsMobileOpen={setIsMobileOpen}
+                  onLogout={handleLogout}
+                />
               </div>
             </div>
           </div>

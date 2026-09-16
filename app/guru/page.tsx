@@ -8,6 +8,26 @@ import { apiKelas, Kelas } from '@/lib/api/kelas';
 import { apiLabor, Labor } from '@/lib/api/labor';
 import { apiPenggunaan } from '@/lib/api/penggunaan';
 
+// Deklarasi lokal interface Jurusan agar tidak tergantung export dari @/lib/api/labor
+interface LocalJurusan {
+  id?: number;
+  nama_jurusan?: string;
+  jurusan?: string;
+}
+
+type ExtendedKelas = Kelas & {
+  id_jurusan?: number;
+  idJurusan?: number;
+  jurusan?: LocalJurusan;
+};
+
+type ExtendedLabor = Labor & {
+  id_jurusan?: number;
+  idJurusan?: number;
+  nama_labor?: string;
+  jurusan?: LocalJurusan;
+};
+
 export default function LaporPemakaianLabor() {
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
   const [laborList, setLaborList] = useState<Labor[]>([]);
@@ -32,6 +52,8 @@ export default function LaporPemakaianLabor() {
 
   // Fetch Data Kelas & Labor
   useEffect(() => {
+    let isMounted = true;
+
     const fetchData = async () => {
       try {
         setIsLoadingData(true);
@@ -39,16 +61,24 @@ export default function LaporPemakaianLabor() {
           apiKelas.getAll(),
           apiLabor.getAll()
         ]);
-        setKelasList(resKelas || []);
-        setLaborList(resLabor || []);
-      } catch (error) {
+        if (isMounted) {
+          setKelasList(resKelas || []);
+          setLaborList(resLabor || []);
+        }
+      } catch (error: unknown) {
         console.error("Gagal mengambil data kelas/labor:", error);
       } finally {
-        setIsLoadingData(false);
+        if (isMounted) {
+          setIsLoadingData(false);
+        }
       }
     };
 
     fetchData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Event Listener untuk menutup dropdown saat klik luar
@@ -82,12 +112,14 @@ export default function LaporPemakaianLabor() {
   );
 
   // 2. Filter Laboratorium berdasarkan jurusan kelas yang dipilih
-  const availableLaborList = laborList.filter((labor: any) => {
-    if (!selectedKelasObj) return false; // Jika belum pilih kelas, jangan tampilkan list labor sama sekali
+  const availableLaborList = laborList.filter((labor) => {
+    if (!selectedKelasObj) return false;
 
-    // Match via ID Jurusan
-    const kelasJurusanId = Number((selectedKelasObj as any).id_jurusan ?? (selectedKelasObj as any).idJurusan ?? (selectedKelasObj as any).jurusan?.id ?? 0);
-    const laborJurusanId = Number(labor.id_jurusan ?? labor.idJurusan ?? labor.jurusan?.id ?? 0);
+    const extKelas = selectedKelasObj as ExtendedKelas;
+    const extLabor = labor as ExtendedLabor;
+
+    const kelasJurusanId = Number(extKelas.id_jurusan ?? extKelas.idJurusan ?? extKelas.jurusan?.id ?? 0);
+    const laborJurusanId = Number(extLabor.id_jurusan ?? extLabor.idJurusan ?? extLabor.jurusan?.id ?? 0);
 
     if (kelasJurusanId > 0 && laborJurusanId > 0) {
       return kelasJurusanId === laborJurusanId;
@@ -95,8 +127,8 @@ export default function LaporPemakaianLabor() {
 
     // Match via String/Nama (Fallback)
     const kelasString = (selectedKelasObj.kelas || '').toLowerCase();
-    const laborString = (labor.labor || labor.nama_labor || '').toLowerCase();
-    const laborJurusanName = (labor.jurusan?.nama_jurusan || labor.jurusan?.jurusan || '').toLowerCase();
+    const laborString = (labor.labor || extLabor.nama_labor || '').toLowerCase();
+    const laborJurusanName = (extLabor.jurusan?.nama_jurusan || extLabor.jurusan?.jurusan || '').toLowerCase();
 
     const knownJurusanList = ['rpl', 'dkv', 'tkj', 'tflm', 'akl', 'otkp', 'bdp', 'mm'];
     const detectedJurusan = knownJurusanList.find((j) => kelasString.includes(j));
@@ -108,15 +140,16 @@ export default function LaporPemakaianLabor() {
     return true;
   });
 
-  const filteredLaborList = availableLaborList.filter((item: any) =>
-    (item.labor || item.nama_labor || '').toLowerCase().includes(searchLabor.toLowerCase())
-  );
+  const filteredLaborList = availableLaborList.filter((item) => {
+    const extLabor = item as ExtendedLabor;
+    return (item.labor || extLabor.nama_labor || '').toLowerCase().includes(searchLabor.toLowerCase());
+  });
 
   // Label Labor yang dipilih saat ini
   const selectedLaborObj = laborList.find((l) => String(l.id) === String(formData.labor_id));
   const selectedLaborName = selectedLaborObj ? selectedLaborObj.labor : '';
 
-  // Cek apakah dropdown labor dikunci (karena belum pilih kelas atau sedang loading)
+  // Cek apakah dropdown labor dikunci
   const isLaborDisabled = isLoadingData || isSubmitting || !formData.kelas_id;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -153,8 +186,9 @@ export default function LaporPemakaianLabor() {
       });
       setSearchKelas('');
       setSearchLabor('');
-    } catch (error: any) {
-      alert(error.message || 'Gagal mengirim laporan pemakaian.');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Gagal mengirim laporan pemakaian.';
+      alert(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -295,7 +329,8 @@ export default function LaporPemakaianLabor() {
                           Tidak ada labor yang sesuai untuk {selectedKelasName}
                         </p>
                       ) : (
-                        filteredLaborList.map((item: any) => {
+                        filteredLaborList.map((item) => {
+                          const extLabor = item as ExtendedLabor;
                           const isSelected = String(item.id) === String(formData.labor_id);
                           return (
                             <div
@@ -308,7 +343,7 @@ export default function LaporPemakaianLabor() {
                                 isSelected ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-surface-low text-on-surface'
                               }`}
                             >
-                              {item.labor || item.nama_labor}
+                              {item.labor || extLabor.nama_labor}
                               {isSelected && <Check className="w-4 h-4 text-primary" />}
                             </div>
                           );

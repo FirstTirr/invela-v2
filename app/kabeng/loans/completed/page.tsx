@@ -7,19 +7,17 @@ import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { apiPeminjaman, apiJurusan } from '@/lib/api';
+import { apiPeminjaman, apiJurusan, Jurusan, Peminjaman } from '@/lib/api';
 
-interface PeminjamanItem {
-  id: number;
-  id_item_instance: number;
-  nama_peminjam: string;
-  nomor_telepon: string;
-  tanggal_pinjam: string;
-  tanggal_kembali: string; // Batas target pengembalian
-  actual_return_date?: string; // Tanggal aktual pengembalian dari Backend Go
+type ExtendedJurusan = Jurusan & {
+  nama?: string;
+  nama_jurusan?: string;
+};
+
+type PeminjamanItem = Omit<Peminjaman, 'item_instance'> & {
+  actual_return_date?: string;
   tanggal_dikembalikan?: string;
   updated_at?: string;
-  status: string;
   item_instance?: {
     id: number;
     kode_asset: string;
@@ -32,69 +30,82 @@ interface PeminjamanItem {
       id_jurusan?: number | string;
     };
   };
-}
+};
 
 export default function KabengCompletedLoansPage() {
   const [loans, setLoans] = useState<PeminjamanItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [userJurusanName, setUserJurusanName] = useState<string>("-");
 
-  // Modal TTD State
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [pdfSignData, setPdfSignData] = useState({ jabatan: "Kepala Bengkel", nama: "", nip: "-" });
 
-  const fetchCompletedLoans = async () => {
-    try {
-      setLoading(true);
-
-      const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
-      const currentUser = userStr ? JSON.parse(userStr) : null;
-      const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
-
-      // 1. Ambil Nama Jurusan
-      let detectedJurusan =
-        currentUser?.jurusan?.nama_jurusan ||
-        currentUser?.jurusan?.nama ||
-        currentUser?.nama_jurusan ||
-        currentUser?.jurusan_nama;
-
-      if (!detectedJurusan && myJurusanId) {
-        try {
-          const listJurusan = await apiJurusan.getAll();
-          const found = listJurusan.find((j: any) => String(j.id) === String(myJurusanId));
-          if (found) {
-            detectedJurusan = found.nama_jurusan || (found as any).nama || "";
-          }
-        } catch {}
-      }
-
-      setUserJurusanName(detectedJurusan || "TKJ");
-
-      // 2. Fetch Data Peminjaman
-      const data = await apiPeminjaman.getAll();
-      
-      const filteredLoans = (data || []).filter((loan: any) => {
-        if (loan.status !== 'selesai') return false;
-        if (!myJurusanId) return true;
-
-        const itemJurusanId = 
-          loan.item_instance?.perangkat?.labor?.id_jurusan ||
-          loan.item_instance?.perangkat?.labor?.jurusan_id ||
-          loan.item_instance?.perangkat?.id_jurusan;
-
-        return itemJurusanId ? String(itemJurusanId) === myJurusanId : true;
-      });
-
-      setLoans(filteredLoans);
-    } catch (err: any) {
-      console.error("Gagal memuat riwayat peminjaman:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    let isMounted = true;
+
+    const fetchCompletedLoans = async () => {
+      try {
+        setLoading(true);
+
+        const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+        const currentUser = userStr ? JSON.parse(userStr) : null;
+        const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
+
+        let detectedJurusan: string =
+          currentUser?.jurusan?.nama_jurusan ||
+          currentUser?.jurusan?.nama ||
+          currentUser?.nama_jurusan ||
+          currentUser?.jurusan_nama ||
+          "";
+
+        if (!detectedJurusan && myJurusanId) {
+          try {
+            const listJurusan = (await apiJurusan.getAll()) as ExtendedJurusan[];
+            const found = listJurusan.find((j) => String(j.id) === String(myJurusanId));
+            if (found) {
+              detectedJurusan = found.nama_jurusan || found.nama || "";
+            }
+          } catch {
+            // Fallback silat
+          }
+        }
+
+        if (isMounted) {
+          setUserJurusanName(detectedJurusan || "TKJ");
+        }
+
+        const data = await apiPeminjaman.getAll();
+        
+        const filteredLoans = ((data || []) as unknown as PeminjamanItem[]).filter((loan) => {
+          if (loan.status !== 'selesai') return false;
+          if (!myJurusanId) return true;
+
+          const itemJurusanId = 
+            loan.item_instance?.perangkat?.labor?.id_jurusan ||
+            loan.item_instance?.perangkat?.labor?.jurusan_id ||
+            loan.item_instance?.perangkat?.id_jurusan;
+
+          return itemJurusanId ? String(itemJurusanId) === myJurusanId : true;
+        });
+
+        if (isMounted) {
+          setLoans(filteredLoans);
+        }
+      } catch (err: unknown) {
+        console.error("Gagal memuat riwayat peminjaman:", err);
+        // Safe check
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
     fetchCompletedLoans();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const formatDate = (dateStr?: string) => {
@@ -106,15 +117,11 @@ export default function KabengCompletedLoansPage() {
     }
   };
 
-  // Mengambil tanggal pengembalian aktual dengan prioritas yang benar
   const getReturnDate = (loan: PeminjamanItem) => {
-    // Prioritaskan actual_return_date / tanggal_dikembalikan / updated_at
-    // JANGAN utamakan tanggal_kembali karena itu adalah batas target pengembalian
     const rawDate = loan.actual_return_date || loan.tanggal_dikembalikan || loan.updated_at || loan.tanggal_kembali;
     return formatDate(rawDate);
   };
 
-  // Export Excel / CSV
   const handleExportCSV = () => {
     if (loans.length === 0) return alert("Tidak ada data untuk diexport.");
     const excelData = loans.map((loan, index) => ({
@@ -133,7 +140,6 @@ export default function KabengCompletedLoansPage() {
     XLSX.writeFile(wb, `Riwayat_Peminjaman_${userJurusanName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  // Export PDF
   const handleGeneratePDF = (e: React.FormEvent) => {
     e.preventDefault();
     setIsPdfModalOpen(false);
@@ -193,7 +199,6 @@ export default function KabengCompletedLoansPage() {
   return (
     <PageAnimateWrapper>
       <div className="space-y-6 font-sans antialiased tracking-tight">
-        {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 border-b border-surface-container pb-4">
           <div className="space-y-1">
             <Link 
@@ -212,12 +217,14 @@ export default function KabengCompletedLoansPage() {
 
           <div className="flex items-center gap-2">
             <button 
+              type="button"
               onClick={handleExportCSV} 
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <FileSpreadsheet className="w-4 h-4" /> Export CSV / Excel
             </button>
             <button 
+              type="button"
               onClick={() => { if (loans.length === 0) return alert("Tidak ada data."); setIsPdfModalOpen(true); }} 
               className="px-4 py-2 bg-primary hover:bg-primary-container text-white font-bold text-sm rounded-xl flex items-center gap-2 shadow-xs cursor-pointer"
             >
@@ -226,8 +233,7 @@ export default function KabengCompletedLoansPage() {
           </div>
         </div>
 
-        {/* Table Container */}
-        <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-sm w-full">
+        <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-xs w-full">
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left border-collapse text-base min-w-[700px]">
               <thead className="bg-surface-low border-b border-surface-container-high">
@@ -277,7 +283,6 @@ export default function KabengCompletedLoansPage() {
         </div>
       </div>
 
-      {/* Modal TTD PDF */}
       {isPdfModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl space-y-4">
@@ -286,7 +291,7 @@ export default function KabengCompletedLoansPage() {
                 <FileCheck className="w-5 h-5 text-primary" />
                 <h3 className="text-base font-bold">Informasi Tanda Tangan</h3>
               </div>
-              <button onClick={() => setIsPdfModalOpen(false)} className="text-outline hover:text-on-surface">
+              <button type="button" onClick={() => setIsPdfModalOpen(false)} className="text-outline hover:text-on-surface cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -315,7 +320,7 @@ export default function KabengCompletedLoansPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">NIP (Isi '-' jika tidak ada)</label>
+                <label className="block text-xs font-bold uppercase mb-1">NIP (Isi &apos;-&apos; jika tidak ada)</label>
                 <input
                   type="text"
                   value={pdfSignData.nip}
@@ -325,10 +330,10 @@ export default function KabengCompletedLoansPage() {
               </div>
 
               <div className="pt-2 flex justify-end gap-2">
-                <button type="button" onClick={() => setIsPdfModalOpen(false)} className="px-3 py-1.5 text-sm font-bold text-outline hover:bg-surface-low rounded-lg">
+                <button type="button" onClick={() => setIsPdfModalOpen(false)} className="px-3 py-1.5 text-sm font-bold text-outline hover:bg-surface-low rounded-lg cursor-pointer">
                   Batal
                 </button>
-                <button type="submit" className="px-4 py-1.5 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg flex items-center gap-1.5">
+                <button type="submit" className="px-4 py-1.5 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg flex items-center gap-1.5 cursor-pointer">
                   <Printer className="w-4 h-4" /> Download PDF
                 </button>
               </div>

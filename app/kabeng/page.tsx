@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { 
   CheckCircle2, 
@@ -11,7 +11,16 @@ import {
   TrendingUp 
 } from 'lucide-react';
 import Link from 'next/link';
-import * as API from '@/lib/api';
+import { 
+  apiItemInstance, 
+  apiPeminjaman, 
+  apiPerbaikan, 
+  apiPerangkat,
+  ItemInstance,
+  Peminjaman,
+  Perbaikan,
+  Perangkat
+} from '@/lib/api';
 
 import {
   AreaChart,
@@ -22,6 +31,26 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
+
+interface ExtendedPerangkat extends Omit<Perangkat, 'labor'> {
+  id_jurusan?: number | string;
+  jurusan_id?: number | string;
+  labor?: {
+    id_jurusan?: number | string;
+    jurusan_id?: number | string;
+  };
+}
+
+interface ExtendedItemInstance extends Omit<ItemInstance, 'perangkat' | 'id_perangkat' | 'perangkat_id'> {
+  id_perangkat?: number | string;
+  perangkat_id?: number | string;
+  perangkat?: ExtendedPerangkat;
+}
+
+interface ExtendedPerbaikan extends Omit<Perbaikan, 'status'> {
+  status?: string;
+  [key: string]: unknown;
+}
 
 export default function KabengDashboardOverview() {
   const [loading, setLoading] = useState(true);
@@ -34,10 +63,13 @@ export default function KabengDashboardOverview() {
   });
 
   useEffect(() => {
-    setIsMounted(true);
+    const timer = requestAnimationFrame(() => {
+      setIsMounted(true);
+    });
+    return () => cancelAnimationFrame(timer);
   }, []);
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -45,27 +77,25 @@ export default function KabengDashboardOverview() {
       const currentUser = userStr ? JSON.parse(userStr) : null;
       const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
 
-      const itemInstanceApi = (API as any).apiItemInstance;
-      const peminjamanApi = (API as any).apiPeminjaman;
-      const perbaikanApi = (API as any).apiPerbaikan || (API as any).apiLaporanKerusakan;
-      const perangkatApi = (API as any).apiPerangkat;
-
       const [instancesData, loansData, damageReportsData, perangkatData] = await Promise.all([
-        itemInstanceApi?.getAll ? itemInstanceApi.getAll().catch(() => []) : Promise.resolve([]),
-        peminjamanApi?.getAll ? peminjamanApi.getAll().catch(() => []) : Promise.resolve([]),
-        perbaikanApi?.getAll ? perbaikanApi.getAll().catch(() => []) : Promise.resolve([]),
-        perangkatApi?.getAll ? perangkatApi.getAll().catch(() => []) : Promise.resolve([])
+        apiItemInstance.getAll().catch(() => []),
+        apiPeminjaman.getAll().catch(() => []),
+        apiPerbaikan.getAll().catch(() => []),
+        apiPerangkat.getAll().catch(() => [])
       ]);
 
-      // Lookup map jurusan berdasarkan ID Perangkat
+      const rawInstances = (instancesData || []) as unknown as ExtendedItemInstance[];
+      const rawLoans = (loansData || []) as unknown as Peminjaman[];
+      const rawDamageReports = (damageReportsData || []) as unknown as ExtendedPerbaikan[];
+      const rawPerangkat = (perangkatData || []) as unknown as ExtendedPerangkat[];
+
       const perangkatJurusanMap = new Map<number, string>();
-      (perangkatData || []).forEach((p: any) => {
+      rawPerangkat.forEach((p) => {
         const jId = p.labor?.id_jurusan || p.labor?.jurusan_id || p.id_jurusan || p.jurusan_id;
         if (jId) perangkatJurusanMap.set(Number(p.id), String(jId));
       });
 
-      // Filter Item-Instance milik Jurusan Kabeng
-      const filteredInstances = (instancesData || []).filter((item: any) => {
+      const filteredInstances = rawInstances.filter((item) => {
         if (!myJurusanId) return true;
         
         const itemJurusanId = 
@@ -75,31 +105,26 @@ export default function KabengDashboardOverview() {
           item.perangkat?.jurusan_id ||
           perangkatJurusanMap.get(Number(item.id_perangkat || item.perangkat_id));
 
-        // Jika ada id jurusan pada item, samakan dengan Kabeng. Jika tidak ada, tampilkan saja.
         return itemJurusanId ? String(itemJurusanId) === myJurusanId : true;
       });
 
-      // 1. Kondisi Baik (Semua item-instance yang TIDAK berstatus rusak)
-      const kondisiBaik = filteredInstances.filter((i: any) => {
+      const kondisiBaik = filteredInstances.filter((i) => {
         const status = (i.status || '').toString().toLowerCase().trim();
-        if (!status) return true; // Default item baru dianggap baik
+        if (!status) return true;
         return ['baik', 'tersedia', 'normal', 'ready'].includes(status) || !status.includes('rusak');
       }).length;
 
-      // 2. Barang Rusak (Item-instance berstatus rusak / dalam perbaikan)
-      const barangRusak = filteredInstances.filter((i: any) => {
+      const barangRusak = filteredInstances.filter((i) => {
         const status = (i.status || '').toString().toLowerCase().trim();
         return status.includes('rusak') || status.includes('perbaikan') || status === 'maintenance';
       }).length;
 
-      // 3. Peminjaman Aktif
-      const sedangDipinjam = (loansData || []).filter((loan: any) => {
+      const sedangDipinjam = rawLoans.filter((loan) => {
         const status = (loan.status || '').toLowerCase();
         return status === 'aktif' || status === 'dipinjam';
       }).length;
 
-      // 4. Laporan Kerusakan (Pending)
-      const laporanKerusakan = (damageReportsData || []).filter((report: any) => {
+      const laporanKerusakan = rawDamageReports.filter((report) => {
         const status = (report.status || '').toLowerCase();
         return status === 'pending' || status === 'lapor' || !status;
       }).length;
@@ -111,16 +136,28 @@ export default function KabengDashboardOverview() {
         laporanKerusakan,
       });
 
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Gagal memuat statistik Kabeng:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchDashboardStats();
-  }, []);
+    let mounted = true;
+
+    const loadStats = async () => {
+      if (mounted) {
+        await fetchDashboardStats();
+      }
+    };
+
+    void loadStats();
+
+    return () => {
+      mounted = false;
+    };
+  }, [fetchDashboardStats]);
 
   const chartData = [
     { name: 'Kondisi Baik', total: stats.kondisiBaik },
@@ -141,8 +178,6 @@ export default function KabengDashboardOverview() {
 
         {/* 4 Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          
-          {/* Card 1: Kondisi Baik (Item Instance) */}
           <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4 hover:border-green-300 transition-all">
             <div className="flex items-start justify-between">
               <div>
@@ -165,7 +200,6 @@ export default function KabengDashboardOverview() {
             </p>
           </div>
 
-          {/* Card 2: Sedang Dipinjam */}
           <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4 hover:border-blue-300 transition-all">
             <div className="flex items-start justify-between">
               <div>
@@ -188,7 +222,6 @@ export default function KabengDashboardOverview() {
             </p>
           </div>
 
-          {/* Card 3: Barang Rusak (Item Instance) */}
           <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4 hover:border-amber-300 transition-all">
             <div className="flex items-start justify-between">
               <div>
@@ -211,7 +244,6 @@ export default function KabengDashboardOverview() {
             </p>
           </div>
 
-          {/* Card 4: Laporan Kerusakan */}
           <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4 hover:border-red-300 transition-all">
             <div className="flex items-start justify-between">
               <div>
@@ -233,7 +265,6 @@ export default function KabengDashboardOverview() {
               Membutuhkan konfirmasi
             </p>
           </div>
-
         </div>
 
         {/* Lower Section */}

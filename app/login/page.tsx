@@ -66,10 +66,11 @@ export default function LoginPage() {
         ? `/${roleLower}`
         : '/login';
 
-      window.location.href = targetPath;
+      router.push(targetPath);
 
-    } catch (err: any) {
-      setErrorMessage(err.message || "Terjadi kesalahan saat masuk ke sistem.");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Terjadi kesalahan saat masuk ke sistem.";
+      setErrorMessage(message);
       setIsLoading(false);
     }
   };

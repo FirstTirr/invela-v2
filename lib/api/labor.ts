@@ -6,19 +6,26 @@ export interface Labor {
   id_jurusan?: number;
   idJurusan?: number;
   ID_Jurusan?: number;
-  jurusan?: Jurusan | any;
-  Jurusan?: Jurusan | any;
+  jurusan?: Jurusan | null;
+  Jurusan?: Jurusan | null;
   labor: string;
   created_at?: string;
   updated_at?: string;
 }
 
+// Interface internal untuk mengurusi dynamic payload dari API tanpa menggunakan 'any'
+interface RawLaborItem extends Omit<Labor, 'jurusan' | 'Jurusan'> {
+  IDJurusan?: number;
+  jurusan?: (Jurusan & { nama_jurusan?: string; NamaJurusan?: string }) | null;
+  Jurusan?: (Jurusan & { nama_jurusan?: string; NamaJurusan?: string }) | null;
+}
+
 export const apiLabor = {
   async getAll(): Promise<Labor[]> {
     const result = await fetchWithAuth('/api/labor', { method: 'GET', cache: 'no-store' });
-    const rawData = result.data || [];
+    const rawData = (result.data || []) as RawLaborItem[];
     
-    return rawData.map((item: any) => {
+    return rawData.map((item) => {
       const resolvedJurusanId = item.id_jurusan ?? item.idJurusan ?? item.ID_Jurusan ?? item.IDJurusan;
       const resolvedJurusanObj = item.jurusan || item.Jurusan;
 

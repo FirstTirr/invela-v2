@@ -1,0 +1,148 @@
+[tirr@Tirr invela-v2]$ npm run lint
+npm notice run invela-v2@0.1.0 lint
+npm notice run eslint
+
+/home/tirr/project/invela-v2/app/kabeng/loans/completed/page.tsx
+  95:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effectshould do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/tirr/project/invela-v2/app/kabeng/loans/completed/page.tsx:95:5
+  93 |
+  94 |   useEffect(() => {
+> 95 |     fetchCompletedLoans();
+     |     ^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  96 |   }, [fetchCompletedLoans]);
+  97 |
+  98 |   const formatDate = (dateStr?: string) => {  react-hooks/set-state-in-effect
+
+/home/tirr/project/invela-v2/app/kabeng/loans/page.tsx
+  61:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effectshould do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/tirr/project/invela-v2/app/kabeng/loans/page.tsx:61:5
+  59 |
+  60 |   useEffect(() => {
+> 61 |     fetchLoans();
+     |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  62 |   }, []);
+  63 |
+  64 |   const handleMarkAsDone = async (loan: PeminjamanItem) => {  react-hooks/set-state-in-effect
+
+/home/tirr/project/invela-v2/app/kabeng/penggunaan/page.tsx
+  123:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effectshould do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/tirr/project/invela-v2/app/kabeng/penggunaan/page.tsx:123:5
+  121 |
+  122 |   useEffect(() => {
+> 123 |     fetchData();
+      |     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  124 |   }, [fetchData]);
+  125 |
+  126 |   const handleDelete = async (id: number) => {  react-hooks/set-state-in-effect
+
+/home/tirr/project/invela-v2/app/kaprog/items/page.tsx
+  81:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+/home/tirr/project/invela-v2/app/kaprog/layout.tsx
+  44:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effectshould do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/tirr/project/invela-v2/app/kaprog/layout.tsx:44:5
+  42 |
+  43 |   useEffect(() => {
+> 44 |     loadUserData();
+     |     ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  45 |   }, [loadUserData]);
+  46 |
+  47 |   useEffect(() => {             react-hooks/set-state-in-effect
+  49:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effectshould do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/tirr/project/invela-v2/app/kaprog/layout.tsx:49:7
+  47 |   useEffect(() => {
+  48 |     if (isOpen) {
+> 49 |       setIsOpen(false);
+     |       ^^^^^^^^^ Avoid calling setState() directly within an effect
+  50 |     }
+  51 |   }, [pathname, isOpen]);
+  52 |  react-hooks/set-state-in-effect
+
+/home/tirr/project/invela-v2/app/kaprog/page.tsx
+   62:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effectshould do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/tirr/project/invela-v2/app/kaprog/page.tsx:62:5
+  60 |
+  61 |   useEffect(() => {
+> 62 |     setIsMounted(true);
+     |     ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  63 |   }, []);
+  64 |
+  65 |   const fetchDashboardStats = async () => {  react-hooks/set-state-in-effect
+  150:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effectshould do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/tirr/project/invela-v2/app/kaprog/page.tsx:150:5
+  148 |
+  149 |   useEffect(() => {
+> 150 |     fetchDashboardStats();
+      |     ^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  151 |   }, []);
+  152 |
+  153 |   const chartData = [      react-hooks/set-state-in-effect
+
+/home/tirr/project/invela-v2/app/sapras/damages/page.tsx
+  52:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effectshould do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+/home/tirr/project/invela-v2/app/sapras/damages/page.tsx:52:5
+  50 |
+  51 |   useEffect(() => {
+> 52 |     fetchData();
+     |     ^^^^^^^^^ Avoid calling setState() directly within an effect
+  53 |   }, [fetchData]);
+  54 |
+  55 |   const handleOpenHistoryModal = async (report: Kerusakan) => {  react-hooks/set-state-in-effect
+
+✖ 9 problems (9 errors, 0 warnings)

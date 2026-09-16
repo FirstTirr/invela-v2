@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { History, X, Coins, CheckCircle2, Loader2, AlertCircle, Trash2, Wrench, Plus } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -13,14 +13,36 @@ import {
 } from '@/lib/api';
 import AddDamageModal from '@/components/kabeng/addDamagesModal';
 
+// Extend tipe Kerusakan lokal untuk mengakomodasi struktur relasi terurai
+type ExtendedKerusakan = Kerusakan & {
+  item_instance?: {
+    kode_asset?: string;
+    kode_unit?: string;
+    perangkat?: {
+      nama_perangkat?: string;
+      nama?: string;
+      id_jurusan?: number;
+      labor?: {
+        id_jurusan?: number;
+        jurusan_id?: number;
+      };
+    };
+  };
+  user?: {
+    name?: string;
+    username?: string;
+    jurusan_id?: number;
+  };
+};
+
 export default function KabengDamagesPage() {
   const [isOpenRepairModal, setIsOpenRepairModal] = useState(false);
   const [isOpenHistoryModal, setIsOpenHistoryModal] = useState(false);
   const [isOpenAddModal, setIsOpenAddModal] = useState(false);
-  const [selectedReport, setSelectedReport] = useState<Kerusakan | null>(null);
+  const [selectedReport, setSelectedReport] = useState<ExtendedKerusakan | null>(null);
 
   // State Data Backend
-  const [damages, setDamages] = useState<Kerusakan[]>([]);
+  const [damages, setDamages] = useState<ExtendedKerusakan[]>([]);
   const [historyList, setHistoryList] = useState<RiwayatPerbaikan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
@@ -49,20 +71,19 @@ export default function KabengDamagesPage() {
   };
 
   // Fetch data laporan kerusakan & filter berdasarkan jurusan Kabeng yang login
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    setErrorMsg('');
     try {
-      setIsLoading(true);
-      setErrorMsg('');
-
       // Ambil user dari localStorage
       const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
       const currentUser = userStr ? JSON.parse(userStr) : null;
       const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
 
-      const dataKerusakan = await apiKerusakan.getAll();
+      const dataKerusakan = (await apiKerusakan.getAll()) as ExtendedKerusakan[];
 
       // Filtering Sesuai Jurusan
-      const filtered = (dataKerusakan || []).filter((report: any) => {
+      const filtered = (dataKerusakan || []).filter((report) => {
         if (!myJurusanId) return true; // Jika tidak ada batasan jurusan, tampilkan semua
         
         // Cek id_jurusan dari perangkat / labor
@@ -76,25 +97,38 @@ export default function KabengDamagesPage() {
       });
 
       setDamages(filtered);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Gagal mengambil data:", err);
-      setErrorMsg(err.message || "Gagal memuat data kerusakan.");
+      const message = err instanceof Error ? err.message : "Gagal memuat data kerusakan.";
+      setErrorMsg(message);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchData();
   }, []);
 
+  useEffect(() => {
+    let isMounted = true;
+    
+    const loadInitialData = async () => {
+      if (isMounted) {
+        await fetchData();
+      }
+    };
+
+    void loadInitialData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchData]);
+
   // Handler Buka Modal Riwayat
-  const handleOpenHistoryModal = async (report: Kerusakan) => {
+  const handleOpenHistoryModal = async (report: ExtendedKerusakan) => {
     setSelectedReport(report);
     setIsOpenHistoryModal(true);
     setIsLoadingHistory(true);
 
-    const kodeAsset = (report as any).item_instance?.kode_asset;
+    const kodeAsset = report.item_instance?.kode_asset;
 
     try {
       if (kodeAsset) {
@@ -103,7 +137,7 @@ export default function KabengDamagesPage() {
       } else {
         setHistoryList([]);
       }
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Gagal mengambil riwayat perbaikan:", err);
       setHistoryList([]);
     } finally {
@@ -135,9 +169,10 @@ export default function KabengDamagesPage() {
       setDeskripsiPerbaikan('');
       setBiayaPerbaikan('');
       
-      fetchData();
-    } catch (err: any) {
-      alert(err.message || "Gagal menyimpan data perbaikan.");
+      void fetchData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Gagal menyimpan data perbaikan.";
+      alert(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -152,9 +187,10 @@ export default function KabengDamagesPage() {
       setDeletingId(id);
       await apiKerusakan.delete(id);
       alert("Laporan kerusakan berhasil dihapus!");
-      fetchData();
-    } catch (err: any) {
-      alert(err.message || "Gagal menghapus laporan kerusakan.");
+      void fetchData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Gagal menghapus laporan kerusakan.";
+      alert(message);
     } finally {
       setDeletingId(null);
     }
@@ -196,6 +232,7 @@ export default function KabengDamagesPage() {
             </p>
           </div>
           <button
+            type="button"
             onClick={() => setIsOpenAddModal(true)}
             className="px-4 py-2.5 bg-error hover:bg-error/90 text-white font-bold text-sm rounded-xl flex items-center gap-2 shadow-xs transition-all cursor-pointer shrink-0 self-start sm:self-auto"
           >
@@ -244,7 +281,8 @@ export default function KabengDamagesPage() {
               <AlertCircle className="w-10 h-10 text-error mx-auto" />
               <p className="text-base font-bold text-error">{errorMsg}</p>
               <button 
-                onClick={fetchData}
+                type="button"
+                onClick={() => void fetchData()}
                 className="px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg shadow-xs hover:bg-primary-container transition-all cursor-pointer"
               >
                 Coba Lagi
@@ -271,7 +309,7 @@ export default function KabengDamagesPage() {
                       </td>
                     </tr>
                   ) : (
-                    damages.map((report: any) => {
+                    damages.map((report) => {
                       const itemInst = report.item_instance;
                       const namaBarang = itemInst?.perangkat?.nama_perangkat || itemInst?.perangkat?.nama || 'Perangkat';
                       const kodeUnit = itemInst?.kode_asset || itemInst?.kode_unit || `Unit #${report.id_item_instance}`;
@@ -303,12 +341,14 @@ export default function KabengDamagesPage() {
                           </td>
                           <td className="p-5 text-right space-x-2 whitespace-nowrap">
                             <button 
+                              type="button"
                               onClick={() => handleOpenHistoryModal(report)}
                               className="px-3 py-2 text-sm font-bold text-secondary hover:bg-surface-low border border-surface-container-high rounded-lg transition-all inline-flex items-center gap-1.5 cursor-pointer"
                             >
                               <History className="w-4 h-4" /> Riwayat
                             </button>
                             <button 
+                              type="button"
                               onClick={() => { 
                                 setSelectedReport(report); 
                                 setDeskripsiPerbaikan('');
@@ -325,6 +365,7 @@ export default function KabengDamagesPage() {
                               <Wrench className="w-4 h-4" /> Perbaikan
                             </button>
                             <button 
+                              type="button"
                               onClick={() => handleDelete(report.id)}
                               disabled={deletingId === report.id}
                               className="p-2 text-sm font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-all inline-flex items-center justify-center cursor-pointer disabled:opacity-50"
@@ -353,7 +394,7 @@ export default function KabengDamagesPage() {
             <AddDamageModal
               isOpen={isOpenAddModal}
               onClose={() => setIsOpenAddModal(false)}
-              onSuccess={fetchData}
+              onSuccess={() => void fetchData()}
             />
           )}
         </AnimatePresence>
@@ -371,6 +412,7 @@ export default function KabengDamagesPage() {
                 <div className="flex justify-between items-center border-b border-surface-container pb-3">
                   <h3 className="text-lg font-bold text-on-surface">Input Perbaikan: #{selectedReport.id}</h3>
                   <button 
+                    type="button"
                     onClick={() => setIsOpenRepairModal(false)} 
                     className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer"
                   >
@@ -437,12 +479,13 @@ export default function KabengDamagesPage() {
                   <div>
                     <h3 className="text-lg font-bold text-on-surface">Riwayat Perbaikan Unit</h3>
                     <p className="text-base text-error font-bold mt-1">
-                      {((selectedReport as any).item_instance?.perangkat?.nama_perangkat || (selectedReport as any).item_instance?.perangkat?.nama) || 'Perangkat'} (
-                      {(selectedReport as any).item_instance?.kode_asset || `ID ${selectedReport.id_item_instance}`}
+                      {selectedReport.item_instance?.perangkat?.nama_perangkat || selectedReport.item_instance?.perangkat?.nama || 'Perangkat'} (
+                      {selectedReport.item_instance?.kode_asset || `ID ${selectedReport.id_item_instance}`}
                       )
                     </p>
                   </div>
                   <button 
+                    type="button"
                     onClick={() => setIsOpenHistoryModal(false)} 
                     className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer"
                   >

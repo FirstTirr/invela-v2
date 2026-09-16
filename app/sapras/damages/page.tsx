@@ -1,10 +1,20 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { History, X, Coins, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiKerusakan, apiRiwayatPerbaikan, Kerusakan, RiwayatPerbaikan } from '@/lib/api';
+
+interface ExtendedItemInstance {
+  id?: number;
+  kode_asset?: string;
+  kode_unit?: string;
+  perangkat?: {
+    nama_perangkat?: string;
+    nama?: string;
+  };
+}
 
 export default function SaprasDamagesPage() {
   const [isOpenHistoryModal, setIsOpenHistoryModal] = useState(false);
@@ -18,7 +28,7 @@ export default function SaprasDamagesPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
       setErrorMsg('');
@@ -29,17 +39,23 @@ export default function SaprasDamagesPage() {
 
       setDamages(dataKerusakan || []);
       setAllHistory(dataRiwayat || []);
-    } catch (err: any) {
+    } catch (err) {
       console.error("Gagal mengambil data sapras:", err);
-      setErrorMsg(err.message || "Gagal memuat data kerusakan.");
+      const message = err instanceof Error ? err.message : "Gagal memuat data kerusakan.";
+      setErrorMsg(message);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    // Membungkus pemanggilan fetchData dengan requestAnimationFrame untuk 
+    // mencegah synchronous setState di dalam efek yang memicu cascading renders.
+    const timer = requestAnimationFrame(() => {
+      fetchData();
+    });
+    return () => cancelAnimationFrame(timer);
+  }, [fetchData]);
 
   const handleOpenHistoryModal = async (report: Kerusakan) => {
     setSelectedReport(report);
@@ -154,7 +170,7 @@ export default function SaprasDamagesPage() {
                     </tr>
                   ) : (
                     damages.map((report) => {
-                      const itemInst = report.item_instance as any;
+                      const itemInst = report.item_instance as ExtendedItemInstance | undefined;
                       const namaBarang = itemInst?.perangkat?.nama_perangkat || itemInst?.perangkat?.nama || 'Perangkat';
                       const kodeUnit = itemInst?.kode_asset || itemInst?.kode_unit || `Unit #${report.id_item_instance}`;
                       const namaPelapor = report.user?.name || report.user?.username || report.user?.email || `User #${report.id_user}`;
@@ -208,7 +224,8 @@ export default function SaprasDamagesPage() {
                   <div>
                     <h3 className="text-xl font-bold text-on-surface">Detail Nota & Riwayat Tindakan</h3>
                     <p className="text-base text-error font-bold mt-1">
-                      {((selectedReport.item_instance as any)?.perangkat?.nama_perangkat || (selectedReport.item_instance as any)?.perangkat?.nama) || 'Perangkat'} (
+                      {((selectedReport.item_instance as ExtendedItemInstance | undefined)?.perangkat?.nama_perangkat || 
+                        (selectedReport.item_instance as ExtendedItemInstance | undefined)?.perangkat?.nama) || 'Perangkat'} (
                       {selectedReport.item_instance?.kode_asset || `ID ${selectedReport.id_item_instance}`}
                       )
                     </p>

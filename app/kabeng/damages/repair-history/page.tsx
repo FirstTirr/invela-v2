@@ -1,16 +1,41 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import PageAnimateWrapper from "@/components/page-animate-wrapper";
 import { History, Search, FileSpreadsheet, Printer, Loader2, AlertCircle, ArrowLeft, X, FileCheck } from "lucide-react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { apiRiwayatPerbaikan, RiwayatPerbaikan, apiKerusakan, apiJurusan } from "@/lib/api";
+import { apiRiwayatPerbaikan, RiwayatPerbaikan, apiKerusakan, apiJurusan, Jurusan, Kerusakan } from "@/lib/api";
+
+interface ExtendedJurusan extends Jurusan {
+  nama?: string;
+}
+
+type ExtendedKerusakan = Omit<Kerusakan, "item_instance" | "id_user"> & {
+  user?: { name?: string; email?: string; username?: string; jurusan_id?: number };
+  id_user?: number;
+  item_instance?: {
+    id?: number;
+    kode_asset?: string;
+    perangkat?: {
+      id_jurusan?: number;
+      labor?: {
+        id_jurusan?: number;
+        jurusan_id?: number;
+      };
+    };
+  };
+};
+
+interface ExtendedRiwayatPerbaikan extends RiwayatPerbaikan {
+  jurusan_id?: number;
+  id_jurusan?: number;
+}
 
 export default function RepairHistoryPage() {
-  const [historyList, setHistoryList] = useState<RiwayatPerbaikan[]>([]);
+  const [historyList, setHistoryList] = useState<ExtendedRiwayatPerbaikan[]>([]);
   const [pelaporMap, setPelaporMap] = useState<Record<number, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -21,7 +46,7 @@ export default function RepairHistoryPage() {
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [pdfSignData, setPdfSignData] = useState({ jabatan: "Kepala Bengkel", nama: "", nip: "-" });
 
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       setIsLoading(true);
       setErrorMsg("");
@@ -31,19 +56,19 @@ export default function RepairHistoryPage() {
       const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
 
       // 1. Ambil Nama Jurusan User Login
-      let detectedJurusan =
+      let detectedJurusan: string =
         currentUser?.jurusan?.nama_jurusan ||
         currentUser?.jurusan?.nama ||
         currentUser?.nama_jurusan ||
-        currentUser?.jurusan_nama;
+        currentUser?.jurusan_nama ||
+        "";
 
-      // Jika di user object hanya ada jurusan_id tanpa nama jurusan, fetch master jurusan
       if (!detectedJurusan && myJurusanId) {
         try {
-          const listJurusan = await apiJurusan.getAll();
-          const found = listJurusan.find((j: any) => String(j.id) === String(myJurusanId));
+          const listJurusan = (await apiJurusan.getAll()) as ExtendedJurusan[];
+          const found = listJurusan.find((j) => String(j.id) === String(myJurusanId));
           if (found) {
-            detectedJurusan = found.nama_jurusan || (found as any).nama || "";
+            detectedJurusan = found.nama_jurusan || found.nama || "";
           }
         } catch {
           // fallback jika api fail
@@ -61,17 +86,21 @@ export default function RepairHistoryPage() {
       const pMap: Record<number, string> = {};
       const kerusakanJurusanMap = new Map<number, string>();
 
-      (kerusakanData || []).forEach((k: any) => {
+      ((kerusakanData || []) as ExtendedKerusakan[]).forEach((k) => {
         if (k.id) {
           pMap[k.id] = k.user?.name || k.user?.email || k.user?.username || (k.id_user ? `User #${k.id_user}` : "-");
-          const jId = k.item_instance?.perangkat?.labor?.id_jurusan || k.item_instance?.perangkat?.labor?.jurusan_id || k.item_instance?.perangkat?.id_jurusan || k.user?.jurusan_id;
+          const jId =
+            k.item_instance?.perangkat?.labor?.id_jurusan ||
+            k.item_instance?.perangkat?.labor?.jurusan_id ||
+            k.item_instance?.perangkat?.id_jurusan ||
+            k.user?.jurusan_id;
           if (jId != null) kerusakanJurusanMap.set(k.id, String(jId));
         }
       });
 
       setPelaporMap(pMap);
 
-      const filteredByJurusan = (riwayatData || []).filter((item: any) => {
+      const filteredByJurusan = ((riwayatData || []) as ExtendedRiwayatPerbaikan[]).filter((item) => {
         const itemJurusanId = item.jurusan_id || item.id_jurusan || kerusakanJurusanMap.get(item.kerusakan_id);
         if (!itemJurusanId) return false;
         if (!myJurusanId) return true;
@@ -79,20 +108,34 @@ export default function RepairHistoryPage() {
       });
 
       setHistoryList(filteredByJurusan);
-    } catch (err: any) {
-      setErrorMsg(err.message || "Gagal memuat riwayat perbaikan.");
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Gagal memuat riwayat perbaikan.";
+      setErrorMsg(msg);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { fetchHistory(); }, []);
+  useEffect(() => {
+    let isMounted = true;
 
-  // Formatters
+    queueMicrotask(() => {
+      if (isMounted) {
+        void fetchHistory();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchHistory]);
+
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return "-";
     try {
-      return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" }).format(new Date(dateStr));
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return "-";
+      return new Intl.DateTimeFormat("id-ID", { day: "numeric", month: "short", year: "numeric" }).format(d);
     } catch {
       return "-";
     }
@@ -101,7 +144,6 @@ export default function RepairHistoryPage() {
   const formatRupiah = (amount: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount || 0);
 
-  // Search Filter
   const filteredData = historyList.filter((item) => {
     const q = searchQuery.toLowerCase();
     const pelapor = pelaporMap[item.kerusakan_id] || item.nama_teknisi || "";
@@ -115,7 +157,6 @@ export default function RepairHistoryPage() {
 
   const totalBiaya = filteredData.reduce((acc, curr) => acc + (Number(curr.biaya) || 0), 0);
 
-  // Export Excel
   const handleExportExcel = () => {
     if (filteredData.length === 0) return alert("Tidak ada data untuk diexport.");
     const excelData = filteredData.map((item, index) => ({
@@ -133,7 +174,6 @@ export default function RepairHistoryPage() {
     XLSX.writeFile(wb, `Riwayat_Perbaikan_${userJurusanName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  // Generate & Download PDF
   const handleGeneratePDF = (e: React.FormEvent) => {
     e.preventDefault();
     setIsPdfModalOpen(false);
@@ -142,7 +182,6 @@ export default function RepairHistoryPage() {
     const pw = doc.internal.pageSize.getWidth();
     const ph = doc.internal.pageSize.getHeight();
 
-    // Header Laporan
     doc.setFontSize(13).setFont("helvetica", "bold").text("LAPORAN RIWAYAT PERBAIKAN PERANGKAT", pw / 2, 40, { align: "center" });
     doc.setFontSize(10).text(`JURUSAN: ${userJurusanName.toUpperCase()}`, pw / 2, 54, { align: "center" });
     doc.setFontSize(8).setFont("helvetica", "normal");
@@ -151,7 +190,6 @@ export default function RepairHistoryPage() {
 
     doc.setLineWidth(1).line(40, 86, pw - 40, 86);
 
-    // Tabel PDF
     autoTable(doc, {
       startY: 96,
       head: [["NO", "TANGGAL", "BARANG / UNIT", "TEKNISI / PELAPOR", "DESKRIPSI PERBAIKAN", "BIAYA"]],
@@ -165,7 +203,6 @@ export default function RepairHistoryPage() {
       ]),
       foot: [
         [
-          // TOTAL BIAYA DI KIRI (colSpan 5, align left)
           { content: "TOTAL BIAYA PERBAIKAN", colSpan: 5, styles: { halign: "left", fontStyle: "bold" } },
           { content: formatRupiah(totalBiaya), styles: { halign: "right", fontStyle: "bold" } },
         ],
@@ -177,11 +214,9 @@ export default function RepairHistoryPage() {
       styles: { fontSize: 8, cellPadding: 5 },
     });
 
-    // 1. Kunci ke Halaman Terakhir PDF
     const totalPages = doc.getNumberOfPages();
     doc.setPage(totalPages);
 
-    // 2. TTD di Pojok Kiri Bawah Halaman (Margin bawah ~110pt dari ph)
     const signX = 40; 
     const signY = ph - 110; 
 
@@ -200,7 +235,6 @@ export default function RepairHistoryPage() {
   return (
     <PageAnimateWrapper>
       <div className="space-y-6 font-sans tracking-tight">
-        {/* Header Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <Link href="/kabeng/damages" className="inline-flex items-center gap-1.5 text-sm font-bold text-outline hover:text-primary mb-1">
@@ -224,7 +258,6 @@ export default function RepairHistoryPage() {
           </div>
         </div>
 
-        {/* Search & Total */}
         <div className="bg-white border border-surface-container-high rounded-xl p-4 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="relative flex-1 max-w-md w-full">
             <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
@@ -242,7 +275,6 @@ export default function RepairHistoryPage() {
           </div>
         </div>
 
-        {/* Table */}
         <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-xs">
           {isLoading ? (
             <div className="flex flex-col items-center py-12 space-y-2">
@@ -294,7 +326,6 @@ export default function RepairHistoryPage() {
         </div>
       </div>
 
-      {/* Modal TTD PDF */}
       {isPdfModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
           <div className="bg-white rounded-2xl max-w-sm w-full p-5 shadow-xl space-y-4">
@@ -332,7 +363,7 @@ export default function RepairHistoryPage() {
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold uppercase mb-1">NIP (Isi '-' jika tidak ada)</label>
+                <label className="block text-xs font-bold uppercase mb-1">NIP (Isi &apos;-&apos; jika tidak ada)</label>
                 <input
                   type="text"
                   value={pdfSignData.nip}

@@ -1,9 +1,24 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Trash2, Edit, Loader2, RefreshCw } from 'lucide-react';
 import { apiLabor, apiJurusan, Labor, Jurusan } from '@/lib/api';
+
+type ExtendedLabor = Labor & {
+  id_jurusan?: number;
+  idJurusan?: number;
+  ID_Jurusan?: number;
+  IDJurusan?: number;
+  jurusan_id?: number;
+  jurusan?: Jurusan & { nama_jurusan?: string; jurusan?: string; NamaJurusan?: string };
+  Jurusan?: Jurusan & { nama_jurusan?: string; jurusan?: string; NamaJurusan?: string };
+};
+
+type ExtendedJurusan = Jurusan & {
+  jurusan?: string;
+  NamaJurusan?: string;
+};
 
 export default function ReadLaborPage() {
   const [labors, setLabors] = useState<Labor[]>([]);
@@ -16,7 +31,7 @@ export default function ReadLaborPage() {
   const [editJurusanId, setEditJurusanId] = useState<string | number>('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -26,15 +41,51 @@ export default function ReadLaborPage() {
       ]);
       setLabors(laborData);
       setJurusanList(jurusanData);
-    } catch (err: any) {
-      setError(err.message || 'Gagal memuat data labor');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Gagal memuat data labor');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchData();
+    let isMounted = true;
+
+    const initFetch = async () => {
+      try {
+        setError(null);
+        const [laborData, jurusanData] = await Promise.all([
+          apiLabor.getAll(),
+          apiJurusan.getAll()
+        ]);
+        if (isMounted) {
+          setLabors(laborData);
+          setJurusanList(jurusanData);
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError('Gagal memuat data labor');
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initFetch();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleDelete = async (id: number, nama: string) => {
@@ -43,15 +94,17 @@ export default function ReadLaborPage() {
     try {
       await apiLabor.delete(id);
       setLabors((prev) => prev.filter((item) => item.id !== id));
-    } catch (err: any) {
-      alert(`Gagal menghapus: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      alert(`Gagal menghapus: ${message}`);
     }
   };
 
   const handleOpenEdit = (labor: Labor) => {
+    const extLabor = labor as ExtendedLabor;
     setEditingLabor(labor);
     setEditValue(labor.labor);
-    const currentId = labor.id_jurusan ?? labor.idJurusan ?? labor.ID_Jurusan ?? (labor as any).IDJurusan ?? labor.jurusan?.id ?? labor.Jurusan?.id ?? '';
+    const currentId = labor.id_jurusan ?? labor.idJurusan ?? labor.ID_Jurusan ?? extLabor.IDJurusan ?? labor.jurusan?.id ?? labor.Jurusan?.id ?? '';
     setEditJurusanId(currentId);
   };
 
@@ -64,25 +117,28 @@ export default function ReadLaborPage() {
       await apiLabor.update(editingLabor.id, editValue, Number(editJurusanId));
       await fetchData();
       setEditingLabor(null);
-    } catch (err: any) {
-      alert(`Gagal memperbarui: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      alert(`Gagal memperbarui: ${message}`);
     } finally {
       setIsUpdating(false);
     }
   };
 
   // Helper untuk mendapatkan nama jurusan secara presisi
-  const getJurusanName = (labor: any) => {
-    const targetId = labor.id_jurusan ?? labor.idJurusan ?? labor.ID_Jurusan ?? labor.IDJurusan ?? labor.jurusan_id ?? labor.jurusan?.id ?? labor.Jurusan?.id;
+  const getJurusanName = (labor: Labor) => {
+    const extLabor = labor as ExtendedLabor;
+    const targetId = labor.id_jurusan ?? labor.idJurusan ?? labor.ID_Jurusan ?? extLabor.IDJurusan ?? extLabor.jurusan_id ?? labor.jurusan?.id ?? labor.Jurusan?.id;
 
     if (targetId !== undefined && targetId !== null && jurusanList.length > 0) {
-      const found = jurusanList.find((j: any) => String(j.id) === String(targetId));
+      const found = jurusanList.find((j) => String(j.id) === String(targetId));
       if (found) {
-        return found.nama_jurusan || found.jurusan || (found as any).NamaJurusan || '-';
+        const extFound = found as ExtendedJurusan;
+        return found.nama_jurusan || extFound.jurusan || extFound.NamaJurusan || '-';
       }
     }
 
-    const relObj = labor.jurusan || labor.Jurusan;
+    const relObj = extLabor.jurusan || extLabor.Jurusan;
     if (relObj) {
       const name = relObj.nama_jurusan || relObj.jurusan || relObj.NamaJurusan;
       if (name) return name;
@@ -193,9 +249,12 @@ export default function ReadLaborPage() {
                     className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base focus:outline-none focus:border-primary bg-white font-medium cursor-pointer"
                   >
                     <option value="">-- Pilih Jurusan --</option>
-                    {jurusanList.map((j: any) => (
-                      <option key={j.id} value={j.id}>{j.nama_jurusan || j.jurusan}</option>
-                    ))}
+                    {jurusanList.map((j) => {
+                      const extJ = j as ExtendedJurusan;
+                      return (
+                        <option key={j.id} value={j.id}>{j.nama_jurusan || extJ.jurusan}</option>
+                      );
+                    })}
                   </select>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">

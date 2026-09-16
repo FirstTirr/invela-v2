@@ -107,18 +107,16 @@ const structuredData = {
 
 export default function Home() {
   const router = useRouter();
+  const { isLight } = useTheme();
+
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  
-  const [checkingAuth, setCheckingAuth] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
 
-  const themeContext = useTheme ? useTheme() : { isLight: false };
-  const isLight = themeContext?.isLight ?? false;
-
-  // Cek Auth & Redirect Otomatis
-  useEffect(() => {
+  // Read Auth State Safely in Lazy Initializer
+  const [{ isLoggedIn, userRole, checkingAuth }] = useState(() => {
+    if (typeof window === "undefined") {
+      return { isLoggedIn: false, userRole: null, checkingAuth: true };
+    }
     try {
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
@@ -127,18 +125,21 @@ export default function Home() {
 
         if (roleName && typeof roleName === "string") {
           const cleanRole = roleName.toLowerCase().trim();
-          setIsLoggedIn(true);
-          setUserRole(cleanRole);
-          router.replace(`/${cleanRole}`);
-          return;
+          return { isLoggedIn: true, userRole: cleanRole, checkingAuth: true };
         }
       }
     } catch (error) {
       console.error("Gagal membaca session user:", error);
-    } finally {
-      setCheckingAuth(false);
     }
-  }, [router]);
+    return { isLoggedIn: false, userRole: null, checkingAuth: false };
+  });
+
+  // Redirect Effect
+  useEffect(() => {
+    if (isLoggedIn && userRole) {
+      router.replace(`/${userRole}`);
+    }
+  }, [isLoggedIn, userRole, router]);
 
   // Scroll Listener
   useEffect(() => {
@@ -147,7 +148,7 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Helper Class Style untuk Mempersingkat Ternary Theme
+  // Helper Class Style
   const theme = {
     bg: isLight ? "bg-slate-50 text-slate-900" : "bg-slate-950 text-white",
     cardBg: isLight ? "bg-white border-slate-200 shadow-xl" : "bg-linear-to-br from-slate-900 to-slate-950 border-white/10",
@@ -205,7 +206,7 @@ export default function Home() {
             </div>
 
             <div className="hidden md:flex items-center gap-4">
-              {ThemeToggle && <ThemeToggle />}
+              <ThemeToggle />
               <Link
                 href={isLoggedIn && userRole ? `/${userRole}` : "/login"}
                 className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
@@ -235,7 +236,7 @@ export default function Home() {
             ))}
             <div className="flex items-center justify-between border-t pt-4 border-slate-200/10">
               <span className="text-sm font-medium">Tema Visual</span>
-              {ThemeToggle && <ThemeToggle />}
+              <ThemeToggle />
             </div>
             <Link
               href={isLoggedIn && userRole ? `/${userRole}` : "/login"}
@@ -394,7 +395,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Access Portal Section - Enhanced with Glassmorphism & Modern Animations */}
+      {/* Access Portal Section */}
       <section id="akses" className="py-24 relative z-10 scroll-mt-28">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className={`text-4xl font-bold mb-4 ${theme.textHead}`}>Portal Akses Role</h2>

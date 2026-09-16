@@ -3,30 +3,41 @@
 import React, { useState, useEffect } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Plus, Network, GraduationCap, Tags, Server, ArrowRight } from 'lucide-react';
-import { apiKelas, apiJurusan, apiKategori, apiLabor } from '@/lib/api';
+import { apiKelas, apiJurusan, apiKategori, apiLabor, Jurusan } from '@/lib/api';
+
+type TabKey = 'labor' | 'jurusan' | 'kelas' | 'category';
 
 export default function MasterInputPage() {
-  const [activeTab, setActiveTab] = useState<'labor' | 'jurusan' | 'kelas' | 'category'>('labor');
+  const [activeTab, setActiveTab] = useState<TabKey>('labor');
   const [inputValue, setInputValue] = useState('');
   const [selectedJurusanId, setSelectedJurusanId] = useState<number | ''>('');
-  const [jurusanList, setJurusanList] = useState<any[]>([]);
+  const [jurusanList, setJurusanList] = useState<Jurusan[]>([]);
   const [loadingJurusan, setLoadingJurusan] = useState(false);
   const [loading, setLoading] = useState(false); 
 
   // Fetch data jurusan untuk dropdown (Digunakan pada tab labor & kelas)
   useEffect(() => {
+    let isMounted = true;
     const fetchJurusan = async () => {
       try {
         setLoadingJurusan(true);
         const data = await apiJurusan.getAll();
-        setJurusanList(data || []);
-      } catch (err) {
+        if (isMounted) {
+          setJurusanList(data || []);
+        }
+      } catch (err: unknown) {
         console.error('Gagal memuat data jurusan:', err);
       } finally {
-        setLoadingJurusan(false);
+        if (isMounted) {
+          setLoadingJurusan(false);
+        }
       }
     };
     fetchJurusan();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const tabsConfig = {
@@ -85,7 +96,6 @@ export default function MasterInputPage() {
     try {
       setLoading(true);
       if (activeTab === 'labor') {
-        // Sesuaikan parameter kirim objek ke backend jika labor memerlukan id_jurusan
         await apiLabor.create(cleanValue, Number(selectedJurusanId));
         alert(`Sukses! Ruang Laboratorium [${cleanValue}] berhasil disimpan ke database.`);
       } else if (activeTab === 'kelas') {
@@ -100,8 +110,9 @@ export default function MasterInputPage() {
       }
       setInputValue('');
       setSelectedJurusanId('');
-    } catch (err: any) {
-      alert(`Gagal menyimpan data: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      alert(`Gagal menyimpan data: ${message}`);
     } finally {
       setLoading(false);
     }
@@ -189,11 +200,14 @@ export default function MasterInputPage() {
                           className="w-full pl-12 pr-4 py-3.5 border border-surface-container-high rounded-xl text-base bg-white text-on-surface focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/5 transition-all duration-200 font-medium shadow-sm cursor-pointer disabled:opacity-60"
                         >
                           <option value="">{loadingJurusan ? 'Memuat data jurusan...' : '-- Pilih Jurusan Terkait --'}</option>
-                          {jurusanList.map((j: any) => (
-                            <option key={j.id} value={j.id}>
-                              {j.jurusan || j.nama_jurusan}
-                            </option>
-                          ))}
+                          {jurusanList.map((j) => {
+                            const extJ = j as Jurusan & { jurusan?: string };
+                            return (
+                              <option key={j.id} value={j.id}>
+                                {j.nama_jurusan || extJ.jurusan}
+                              </option>
+                            );
+                          })}
                         </select>
                       </div>
                     </div>

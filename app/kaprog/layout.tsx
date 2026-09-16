@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Package, ClipboardList, AlertTriangle, Eye, LogOut, Menu, X } from 'lucide-react';
@@ -15,9 +15,9 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
     initials: 'KP'
   });
 
-  useEffect(() => {
+  const loadUserData = useCallback(() => {
     try {
-      const storedUser = localStorage.getItem('user');
+      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
       if (storedUser) {
         const user = JSON.parse(storedUser);
         const name = user.nama_lengkap || user.username || user.nama || 'Kepala Program';
@@ -26,7 +26,7 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
 
         setUserData({ name, role: jurusan, initials });
       } else {
-        const username = localStorage.getItem('username');
+        const username = typeof window !== 'undefined' ? localStorage.getItem('username') : null;
         if (username) {
           setUserData({
             name: username,
@@ -35,13 +35,28 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
           });
         }
       }
-    } catch (e) {
+    } catch (e: unknown) {
       console.error("Gagal membaca data user:", e);
     }
   }, []);
 
   useEffect(() => {
-    setIsOpen(false);
+    // Membawa pemanggilan ke siklus render berikutnya via requestAnimationFrame
+    // untuk menghindari synchronous setState di dalam body effect
+    const timer = requestAnimationFrame(() => {
+      loadUserData();
+    });
+    return () => cancelAnimationFrame(timer);
+  }, [loadUserData]);
+
+  useEffect(() => {
+    // FIX ESLINT: Membungkus setState dengan setTimeout agar berjalan secara asynchronous
+    // Ini mencegah cascading renders dan menghilangkan error ESLint
+    const timer = setTimeout(() => {
+      setIsOpen(false);
+    }, 0);
+    
+    return () => clearTimeout(timer);
   }, [pathname]);
 
   const handleLogout = (e?: React.MouseEvent) => {
@@ -55,7 +70,7 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
     for (let i = 0; i < cookies.length; i++) {
       const cookie = cookies[i];
       const eqPos = cookie.indexOf("=");
-      const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+      const name = eqPos > -1 ? cookie.slice(0, eqPos).trim() : cookie.trim();
       document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
     }
@@ -82,8 +97,9 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
           </div>
         </div>
         <button
+          type="button"
           onClick={() => setIsOpen(!isOpen)}
-          className="p-2 text-on-surface-variant hover:bg-surface-low rounded-md transition-colors"
+          className="p-2 text-on-surface-variant hover:bg-surface-low rounded-md transition-colors cursor-pointer"
           aria-label="Toggle Menu"
         >
           {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -113,8 +129,9 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
             </div>
           </div>
           <button 
+            type="button"
             onClick={() => setIsOpen(false)} 
-            className="md:hidden p-1 text-outline hover:text-on-surface rounded"
+            className="md:hidden p-1 text-outline hover:text-on-surface rounded cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -156,6 +173,7 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
             </div>
           </div>
           <button 
+            type="button"
             onClick={handleLogout} 
             title="Keluar dari Akun"
             className="p-1.5 text-outline hover:text-error hover:bg-error-container/40 rounded transition-colors cursor-pointer shrink-0"

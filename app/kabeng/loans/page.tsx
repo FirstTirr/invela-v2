@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Plus, Loader2, CheckCircle, History } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
@@ -8,13 +8,28 @@ import Link from 'next/link';
 import { apiPeminjaman, Peminjaman, CreatePeminjamanInput } from '@/lib/api';
 import LoanModal from './LoanModal';
 
+type PeminjamanItem = Omit<Peminjaman, 'item_instance'> & {
+  item_instance?: {
+    id: number;
+    kode_asset: string;
+    perangkat?: {
+      nama_perangkat?: string;
+      labor?: {
+        id_jurusan?: number | string;
+        jurusan_id?: number | string;
+      };
+      id_jurusan?: number | string;
+    };
+  };
+};
+
 export default function KabengLoansPage() {
   const [isOpenModal, setIsOpenModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
-  const [loans, setLoans] = useState<Peminjaman[]>([]);
+  const [loans, setLoans] = useState<PeminjamanItem[]>([]);
 
-  const fetchLoans = async () => {
+  const fetchLoans = useCallback(async () => {
     try {
       setLoading(true);
       const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
@@ -22,7 +37,7 @@ export default function KabengLoansPage() {
       const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
 
       const data = await apiPeminjaman.getAll();
-      const filtered = (data || []).filter((loan: Peminjaman) => {
+      const filtered = ((data || []) as unknown as PeminjamanItem[]).filter((loan) => {
         if (loan.status === 'selesai') return false;
         if (!myJurusanId) return true;
 
@@ -34,18 +49,55 @@ export default function KabengLoansPage() {
       });
 
       setLoans(filtered);
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Gagal memuat peminjaman:', err);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchLoans();
   }, []);
 
-  const handleMarkAsDone = async (loan: Peminjaman) => {
+  useEffect(() => {
+    let active = true;
+
+    const initFetch = async () => {
+      setLoading(true);
+      try {
+        const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+        const currentUser = userStr ? JSON.parse(userStr) : null;
+        const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
+
+        const data = await apiPeminjaman.getAll();
+        const filtered = ((data || []) as unknown as PeminjamanItem[]).filter((loan) => {
+          if (loan.status === 'selesai') return false;
+          if (!myJurusanId) return true;
+
+          const itemJurusanId =
+            loan.item_instance?.perangkat?.labor?.id_jurusan ||
+            loan.item_instance?.perangkat?.labor?.jurusan_id ||
+            loan.item_instance?.perangkat?.id_jurusan;
+          return itemJurusanId ? String(itemJurusanId) === myJurusanId : true;
+        });
+
+        if (active) {
+          setLoans(filtered);
+        }
+      } catch (err: unknown) {
+        console.error('Gagal memuat peminjaman:', err);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initFetch();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleMarkAsDone = async (loan: PeminjamanItem) => {
     if (!confirm(`Apakah barang peminjaman "${loan.nama_peminjam}" sudah dikembalikan?`)) return;
     try {
       setUpdatingId(loan.id);
@@ -54,15 +106,15 @@ export default function KabengLoansPage() {
         status: 'selesai'
       });
 
-      fetchLoans();
-    } catch (err: any) {
-      alert(err.message || 'Gagal mengubah status peminjaman');
+      await fetchLoans();
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Gagal mengubah status peminjaman';
+      alert(errorMessage);
     } finally {
       setUpdatingId(null);
     }
   };
 
-  // Handler yang cocok dengan signature props onSubmitLoan milik LoanModal
   const handleCreateLoan = async (data: {
     id_item_instance: number;
     nama_peminjam: string;

@@ -6,6 +6,13 @@ import { usePathname } from 'next/navigation';
 import { LayoutDashboard, Package, AlertTriangle, ShieldCheck, LogOut, Menu, X } from 'lucide-react';
 import { Separator } from "@/components/ui/separator";
 
+interface StoredUser {
+  nama_lengkap?: string;
+  username?: string;
+  nama?: string;
+  role?: string;
+}
+
 export default function SaprasLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
@@ -20,33 +27,45 @@ export default function SaprasLayout({ children }: { children: React.ReactNode }
   });
 
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        const name = user.nama_lengkap || user.username || user.nama || 'Tim Sapras';
-        const role = user.role ? `Sapras - ${user.role.toUpperCase()}` : 'SMKN 4 Payakumbuh';
-        const initials = name.slice(0, 2).toUpperCase();
+    const handleInitUser = () => {
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const user = JSON.parse(storedUser) as StoredUser;
+          const name = user.nama_lengkap || user.username || user.nama || 'Tim Sapras';
+          const role = user.role ? `Sapras - ${user.role.toUpperCase()}` : 'SMKN 4 Payakumbuh';
+          const initials = name.slice(0, 2).toUpperCase();
 
-        setUserData({ name, role, initials });
-      } else {
-        const username = localStorage.getItem('username');
-        if (username) {
-          setUserData({
-            name: username,
-            role: 'SMKN 4 Payakumbuh',
-            initials: username.slice(0, 2).toUpperCase()
-          });
+          setUserData({ name, role, initials });
+        } else {
+          const username = localStorage.getItem('username');
+          if (username) {
+            setUserData({
+              name: username,
+              role: 'SMKN 4 Payakumbuh',
+              initials: username.slice(0, 2).toUpperCase()
+            });
+          }
         }
+      } catch (e: unknown) {
+        console.error("Gagal membaca data user:", e);
       }
-    } catch (e) {
-      console.error("Gagal membaca data user:", e);
-    }
+    };
+
+    const animFrame = requestAnimationFrame(() => {
+      handleInitUser();
+    });
+
+    return () => cancelAnimationFrame(animFrame);
   }, []);
 
   // Tutup menu mobile jika rute/halaman berubah
   useEffect(() => {
-    setIsMobileMenuOpen(false);
+    const animFrame = requestAnimationFrame(() => {
+      setIsMobileMenuOpen(false);
+    });
+
+    return () => cancelAnimationFrame(animFrame);
   }, [pathname]);
 
   const saprasMenu = [
@@ -70,7 +89,7 @@ export default function SaprasLayout({ children }: { children: React.ReactNode }
     for (let i = 0; i < cookies.length; i++) {
       const cookie = cookies[i];
       const eqPos = cookie.indexOf("=");
-      const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+      const name = eqPos > -1 ? cookie.slice(0, eqPos).trim() : cookie.trim();
       document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
       document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
     }

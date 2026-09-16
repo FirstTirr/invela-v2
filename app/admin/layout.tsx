@@ -8,32 +8,167 @@ import {
   Menu, X, LogOut, Database, PanelLeftClose, PanelRightClose 
 } from 'lucide-react';
 
+interface SidebarContentProps {
+  isMobile?: boolean;
+  pathname: string;
+  isDropdownOpen: boolean;
+  setIsDropdownOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setIsMobileOpen: (value: boolean) => void;
+  setIsSidebarOpen: (value: boolean) => void;
+  userData: { name: string; role: string; initials: string };
+  handleLogout: (e?: React.MouseEvent) => void;
+  mainNavItems: Array<{ label: string; href: string; icon: React.ElementType }>;
+  subMenuItems: Array<{ label: string; href: string }>;
+}
+
+const SidebarContent = ({
+  isMobile = false,
+  pathname,
+  isDropdownOpen,
+  setIsDropdownOpen,
+  setIsMobileOpen,
+  setIsSidebarOpen,
+  userData,
+  handleLogout,
+  mainNavItems,
+  subMenuItems,
+}: SidebarContentProps) => (
+  <div className="flex flex-col h-full justify-between p-5 font-sans">
+    <div className="space-y-7">
+      {/* Header Sidebar */}
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-primary-container flex items-center justify-center text-white font-black text-lg shadow-sm shrink-0">
+            IC
+          </div>
+          <div>
+            <h2 className="text-base font-black tracking-tight text-on-surface uppercase leading-none">
+              INVELA <span className="text-primary">CONTROL</span>
+            </h2>
+            <span className="text-[10px] font-bold text-outline tracking-widest uppercase block mt-1">Admin Console</span>
+          </div>
+        </div>
+
+        {/* Tombol Tutup Sidebar untuk Desktop */}
+        {!isMobile && (
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(false)}
+            title="Tutup Sidebar"
+            className="p-1.5 text-outline hover:text-on-surface hover:bg-surface-low rounded-lg transition-colors cursor-pointer"
+          >
+            <PanelLeftClose className="w-5 h-5" />
+          </button>
+        )}
+      </div>
+
+      {/* Navigasi Utama */}
+      <nav className="space-y-1">
+        <p className="px-3 text-xs font-bold text-outline tracking-wider uppercase mb-3">Platform Management</p>
+        
+        {mainNavItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = pathname === item.href;
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={() => setIsMobileOpen(false)}
+              className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-bold transition-all ${
+                isActive 
+                  ? 'bg-secondary-container text-primary shadow-sm' 
+                  : 'text-on-surface-variant hover:bg-surface-low hover:text-on-surface'
+              }`}
+            >
+              <Icon className="w-5 h-5 shrink-0" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
+
+        {/* Sub Menu Dropdown */}
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={() => setIsDropdownOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-base font-bold text-on-surface-variant hover:bg-surface-low hover:text-on-surface transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <Database className="w-5 h-5 text-outline shrink-0" />
+              <span>Lihat Data Tabel</span>
+            </div>
+            <ChevronDown className={`w-4 h-4 text-outline transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isDropdownOpen && (
+            <div className="mt-1 ml-6 pl-4 border-l border-surface-container space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+              {subMenuItems.map((sub) => {
+                const isSubActive = pathname === sub.href;
+                return (
+                  <Link
+                    key={sub.href}
+                    href={sub.href}
+                    onClick={() => setIsMobileOpen(false)}
+                    className={`block px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
+                      isSubActive 
+                        ? 'text-primary bg-secondary-container/40' 
+                        : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-low'
+                    }`}
+                  >
+                    {sub.label}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </nav>
+    </div>
+
+    {/* Profile & Logout Section */}
+    <div className="border-t border-surface-container pt-4 flex items-center justify-between">
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div className="w-10 h-10 rounded-full bg-surface-low border border-surface-container-high flex items-center justify-center font-black text-sm text-primary shrink-0">
+          {userData.initials}
+        </div>
+        <div className="flex-1 min-w-0">
+          <h4 className="text-sm font-bold text-on-surface leading-tight truncate">{userData.name}</h4>
+          <span className="text-xs font-semibold text-outline block truncate">{userData.role}</span>
+        </div>
+      </div>
+
+      <button 
+        type="button"
+        onClick={handleLogout}
+        title="Keluar dari Akun"
+        className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0"
+      >
+        <LogOut className="w-5 h-5" />
+      </button>
+    </div>
+  </div>
+);
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(true);
-
-  // State Sidebar Desktop (Open/Collapsed)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
-  // State User Dinamis
-  const [userData, setUserData] = useState({
-    name: 'Admin Root',
-    role: 'Administrator',
-    initials: 'AD'
-  });
+  const [userData, setUserData] = useState({ name: 'Admin Root', role: 'ADMINISTRATOR', initials: 'AD' });
 
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        const name = user.nama_lengkap || user.username || user.nama || 'Admin Root';
-        const role = user.role ? user.role.toUpperCase() : 'ADMINISTRATOR';
-        const initials = name.slice(0, 2).toUpperCase();
-
-        setUserData({ name, role, initials });
-      } else {
+    const loadUserData = () => {
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          const user = JSON.parse(storedUser);
+          const name = user.nama_lengkap || user.username || user.nama || 'Admin Root';
+          const role = user.role ? user.role.toUpperCase() : 'ADMINISTRATOR';
+          const initials = name.slice(0, 2).toUpperCase();
+          setUserData({ name, role, initials });
+          return;
+        }
         const username = localStorage.getItem('username');
         const role = localStorage.getItem('role');
         if (username) {
@@ -43,13 +178,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             initials: username.slice(0, 2).toUpperCase()
           });
         }
+      } catch (e: unknown) {
+        console.error("Gagal membaca data user:", e);
       }
-    } catch (e) {
-      console.error("Gagal membaca data user:", e);
-    }
+    };
+
+    loadUserData();
   }, []);
 
-  // FUNGSI LOGOUT LENGKAP
   const handleLogout = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
     if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
@@ -82,122 +218,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Input Data Master', href: '/admin/master', icon: FilePlus },
   ];
 
-  const SidebarContent = ({ isMobile = false }: { isMobile?: boolean }) => (
-    <div className="flex flex-col h-full justify-between p-5 font-sans">
-      <div className="space-y-7">
-        {/* Header Sidebar */}
-        <div className="flex items-center justify-between px-2">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-primary-container flex items-center justify-center text-white font-black text-lg shadow-sm shrink-0">
-              IC
-            </div>
-            <div>
-              <h2 className="text-base font-black tracking-tight text-on-surface uppercase leading-none">
-                INVELA <span className="text-primary">CONTROL</span>
-              </h2>
-              <span className="text-[10px] font-bold text-outline tracking-widest uppercase block mt-1">Admin Console</span>
-            </div>
-          </div>
-
-          {/* Tombol Tutup Sidebar untuk Desktop */}
-          {!isMobile && (
-            <button
-              type="button"
-              onClick={() => setIsSidebarOpen(false)}
-              title="Tutup Sidebar"
-              className="p-1.5 text-outline hover:text-on-surface hover:bg-surface-low rounded-lg transition-colors cursor-pointer"
-            >
-              <PanelLeftClose className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-
-        {/* Navigasi Utama */}
-        <nav className="space-y-1">
-          <p className="px-3 text-xs font-bold text-outline tracking-wider uppercase mb-3">Platform Management</p>
-          
-          {mainNavItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setIsMobileOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-xl text-base font-bold transition-all ${
-                  isActive 
-                    ? 'bg-secondary-container text-primary shadow-sm' 
-                    : 'text-on-surface-variant hover:bg-surface-low hover:text-on-surface'
-                }`}
-              >
-                <Icon className="w-5 h-5 shrink-0" />
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-
-          {/* Sub Menu Dropdown */}
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-base font-bold text-on-surface-variant hover:bg-surface-low hover:text-on-surface transition-all cursor-pointer"
-            >
-              <div className="flex items-center gap-3">
-                <Database className="w-5 h-5 text-outline shrink-0" />
-                <span>Lihat Data Tabel</span>
-              </div>
-              <ChevronDown className={`w-4 h-4 text-outline transition-transform duration-200 ${isDropdownOpen ? 'rotate-180' : ''}`} />
-            </button>
-
-            {isDropdownOpen && (
-              <div className="mt-1 ml-6 pl-4 border-l border-surface-container space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
-                {subMenuItems.map((sub) => {
-                  const isSubActive = pathname === sub.href;
-                  return (
-                    <Link
-                      key={sub.href}
-                      href={sub.href}
-                      onClick={() => setIsMobileOpen(false)}
-                      className={`block px-4 py-2.5 rounded-lg text-sm font-bold transition-all ${
-                        isSubActive 
-                          ? 'text-primary bg-secondary-container/40' 
-                          : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-low'
-                      }`}
-                    >
-                      {sub.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </nav>
-      </div>
-
-      {/* Profile & Logout Section */}
-      <div className="border-t border-surface-container pt-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-10 h-10 rounded-full bg-surface-low border border-surface-container-high flex items-center justify-center font-black text-sm text-primary shrink-0">
-            {userData.initials}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h4 className="text-sm font-bold text-on-surface leading-tight truncate">{userData.name}</h4>
-            <span className="text-xs font-semibold text-outline block truncate">{userData.role}</span>
-          </div>
-        </div>
-
-        <button 
-          type="button"
-          onClick={handleLogout}
-          title="Keluar dari Akun"
-          className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0"
-        >
-          <LogOut className="w-5 h-5" />
-        </button>
-      </div>
-    </div>
-  );
+  const sidebarProps = {
+    pathname,
+    isDropdownOpen,
+    setIsDropdownOpen,
+    setIsMobileOpen,
+    setIsSidebarOpen,
+    userData,
+    handleLogout,
+    mainNavItems,
+    subMenuItems,
+  };
 
   return (
     <div className="min-h-screen w-full bg-surface-bright flex text-on-surface antialiased tracking-tight">
@@ -209,7 +240,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         }`}
       >
         <div className="w-72 h-full">
-          <SidebarContent isMobile={false} />
+          <SidebarContent {...sidebarProps} isMobile={false} />
         </div>
       </aside>
 
@@ -264,7 +295,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto pt-4">
-                <SidebarContent isMobile={true} />
+                <SidebarContent {...sidebarProps} isMobile={true} />
               </div>
             </div>
           </div>

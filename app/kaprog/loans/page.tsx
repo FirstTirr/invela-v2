@@ -5,7 +5,6 @@ import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { apiPeminjaman } from '@/lib/api/peminjaman';
 import { Clock, CheckCircle2, Search } from 'lucide-react';
 
-// Interface Peminjaman didefinisikan secara lokal di sini
 export interface Peminjaman {
   id: number;
   id_item_instance: number;
@@ -25,26 +24,41 @@ export default function KaprogLoansPage() {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   
-  // State untuk Tab (aktif / selesai) & Search
   const [activeTab, setActiveTab] = useState<'aktif' | 'selesai'>('aktif');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
+    let isMounted = true;
+
     const fetchLoans = async () => {
       try {
         setLoading(true);
         setError(null);
         const data = await apiPeminjaman.getAll();
-        setLoans(data);
-      } catch (err: any) {
+        if (isMounted) {
+          setLoans(data);
+        }
+      } catch (err: unknown) {
         console.error("Failed to fetch loans:", err);
-        setError(err.message || 'Gagal mengambil data peminjaman.');
+        if (isMounted) {
+          if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError('Gagal mengambil data peminjaman.');
+          }
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchLoans();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const formatDate = (dateString?: string) => {
@@ -56,7 +70,6 @@ export default function KaprogLoansPage() {
     }
   };
 
-  // Filter berdasarkan status
   const activeLoans = loans.filter((loan) => {
     const st = loan.status?.toLowerCase();
     return st === 'aktif' || st === 'dipinjam';
@@ -67,10 +80,8 @@ export default function KaprogLoansPage() {
     return st === 'selesai' || st === 'dikembalikan';
   });
 
-  // Pilih list berdasarkan tab aktif
   const currentList = activeTab === 'aktif' ? activeLoans : completedLoans;
 
-  // Filter pencarian
   const filteredList = currentList.filter((loan) => {
     const namaBarang = loan.item_instance?.perangkat?.nama_perangkat || '';
     const namaPeminjam = loan.nama_peminjam || '';
@@ -94,7 +105,6 @@ export default function KaprogLoansPage() {
 
         {/* Navigation Tabs & Search Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          {/* Tab Buttons */}
           <div className="flex bg-surface-container/60 p-1 rounded-xl w-fit border border-surface-container-high">
             <button
               onClick={() => setActiveTab('aktif')}
@@ -127,7 +137,6 @@ export default function KaprogLoansPage() {
             </button>
           </div>
 
-          {/* Search Box */}
           <div className="relative w-full sm:w-64">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
             <input

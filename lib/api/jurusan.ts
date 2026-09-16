@@ -8,16 +8,21 @@ export interface Jurusan {
   updated_at?: string;
 }
 
+interface RawJurusanResponse extends Partial<Jurusan> {
+  NamaJurusan?: string;
+}
+
 export const apiJurusan = {
   async getAll(): Promise<Jurusan[]> {
     const result = await fetchWithAuth('/api/jurusan', { method: 'GET', cache: 'no-store' });
-    const rawData = result.data || [];
+    const rawData = (result.data || []) as RawJurusanResponse[];
     
     // Mapping otomatis agar properti 'nama_jurusan' dan 'jurusan' sinkron dua arah
-    return rawData.map((item: any) => ({
+    return rawData.map((item) => ({
       ...item,
-      nama_jurusan: item.nama_jurusan || item.jurusan || '',
-      jurusan: item.jurusan || item.nama_jurusan || '',
+      id: item.id || 0,
+      nama_jurusan: item.nama_jurusan || item.jurusan || item.NamaJurusan || '',
+      jurusan: item.jurusan || item.nama_jurusan || item.NamaJurusan || '',
     }));
   },
 
@@ -26,9 +31,10 @@ export const apiJurusan = {
       method: 'POST',
       body: JSON.stringify({ nama_jurusan: namaJurusan }),
     });
-    const item = result.data;
+    const item = (result.data || {}) as RawJurusanResponse;
     return {
       ...item,
+      id: item.id || 0,
       nama_jurusan: item.nama_jurusan || item.jurusan || namaJurusan,
       jurusan: item.jurusan || item.nama_jurusan || namaJurusan,
     };
@@ -39,9 +45,10 @@ export const apiJurusan = {
       method: 'PUT',
       body: JSON.stringify({ nama_jurusan: namaJurusan }),
     });
-    const item = result.data;
+    const item = (result.data || {}) as RawJurusanResponse;
     return {
       ...item,
+      id: item.id || id,
       nama_jurusan: item.nama_jurusan || item.jurusan || namaJurusan,
       jurusan: item.jurusan || item.nama_jurusan || namaJurusan,
     };

@@ -19,6 +19,37 @@ export interface ItemInventory {
   assets: ItemInstanceLocal[];
 }
 
+interface UserSession {
+  jurusan_id?: number | string;
+  id_jurusan?: number | string;
+  nama_jurusan?: string;
+  jurusan?: {
+    id?: number | string;
+    nama_jurusan?: string;
+    jurusan?: string;
+  };
+}
+
+interface ApiPerangkatResponse {
+  id: number | string;
+  nama_perangkat?: string;
+  nama?: string;
+  id_jurusan?: number | string;
+  labor?: {
+    id_jurusan?: number | string;
+    jurusan_id?: number | string;
+  };
+}
+
+interface ApiItemInstanceResponse {
+  id?: number | string;
+  id_item_instance?: number | string;
+  kode_asset?: string;
+  kode_unit?: string;
+  id_perangkat: number | string;
+  status?: string;
+}
+
 interface LoanModalProps {
   onClose: () => void;
   onSuccess: () => void;
@@ -38,11 +69,9 @@ export default function LoanModal({ onClose, onSuccess, onSubmitLoan }: LoanModa
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Data State
   const [inventory, setInventory] = useState<ItemInventory[]>([]);
   const [kelases, setKelases] = useState<Kelas[]>([]);
 
-  // Form State
   const [selectedBarang, setSelectedBarang] = useState<ItemInventory | null>(null);
   const [selectedAsset, setSelectedAsset] = useState<ItemInstanceLocal | null>(null);
   const [namaPeminjam, setNamaPeminjam] = useState('');
@@ -51,7 +80,6 @@ export default function LoanModal({ onClose, onSuccess, onSubmitLoan }: LoanModa
   const [tanggalPinjam, setTanggalPinjam] = useState('');
   const [tanggalKembali, setTanggalKembali] = useState('');
 
-  // Dropdowns State
   const [isOpenBarangDropdown, setIsOpenBarangDropdown] = useState(false);
   const [isOpenAssetDropdown, setIsOpenAssetDropdown] = useState(false);
   const [searchBarang, setSearchBarang] = useState('');
@@ -65,60 +93,50 @@ export default function LoanModal({ onClose, onSuccess, onSubmitLoan }: LoanModa
     return s === 'tersedia' || s === 'aktif' || s === 'baik';
   };
 
-  // Fetch Data Inventaris & Kelas dari DB
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         const userStr = localStorage.getItem('user');
-        const currentUser = userStr ? JSON.parse(userStr) : null;
+        const currentUser: UserSession | null = userStr ? JSON.parse(userStr) : null;
         
-        // Ambil jurusan ID & Nama Jurusan dari user login (Kabeng)
         const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : (currentUser?.id_jurusan ? String(currentUser.id_jurusan) : null);
         const myJurusanName = currentUser?.jurusan?.nama_jurusan || currentUser?.jurusan?.jurusan || currentUser?.nama_jurusan || '';
 
         const [perangkatList, instanceList, kelasList] = await Promise.all([
-          apiPerangkat.getAll(),
-          apiItemInstance.getAll(),
+          apiPerangkat.getAll() as Promise<ApiPerangkatResponse[]>,
+          apiItemInstance.getAll() as Promise<ApiItemInstanceResponse[]>,
           apiKelas.getAll(),
         ]);
 
-        // 1. FILTER KELAS BERDASARKAN JURUSAN USER LOGGED IN
-        const filteredKelases = (kelasList || []).filter((k: any) => {
-          if (!myJurusanId && !myJurusanName) return true; // Jika user superadmin / tanpa jurusan, tampilkan semua
+        const filteredKelases = (kelasList || []).filter((k: Kelas & { id_jurusan?: number | string; jurusan_id?: number | string; jurusan?: { id?: number | string } }) => {
+          if (!myJurusanId && !myJurusanName) return true;
 
-          // Match by ID Jurusan
           const kJurusanId = k.id_jurusan || k.jurusan_id || k.jurusan?.id;
           if (kJurusanId && myJurusanId && String(kJurusanId) === myJurusanId) {
             return true;
           }
 
-          // Fallback Match by Name / String (contoh: "XI DKV 1" cocok dengan jurusan "DKV")
           const kelasName = (k.kelas || '').toLowerCase();
           const targetJurusan = (myJurusanName || '').toLowerCase();
 
-          if (targetJurusan && kelasName.includes(targetJurusan)) {
-            return true;
-          }
-
-          return false;
+          return Boolean(targetJurusan && kelasName.includes(targetJurusan));
         });
 
         setKelases(filteredKelases);
 
-        // 2. FILTER PERANGKAT BERDASARKAN JURUSAN USER LOGGED IN
-        const filteredPerangkat = (perangkatList || []).filter((p: any) => {
+        const filteredPerangkat = (perangkatList || []).filter((p: ApiPerangkatResponse) => {
           if (!myJurusanId) return true;
           const pJurusanId = p.labor?.id_jurusan || p.labor?.jurusan_id || p.id_jurusan;
           return pJurusanId ? String(pJurusanId) === myJurusanId : true;
         });
 
-        const grouped: ItemInventory[] = filteredPerangkat.map((p: any) => ({
+        const grouped: ItemInventory[] = filteredPerangkat.map((p: ApiPerangkatResponse) => ({
           id: Number(p.id),
           namaBarang: p.nama_perangkat || p.nama || 'Tanpa Nama',
           assets: (instanceList || [])
-            .filter((inst: any) => Number(inst.id_perangkat) === Number(p.id))
-            .map((inst: any) => ({
+            .filter((inst: ApiItemInstanceResponse) => Number(inst.id_perangkat) === Number(p.id))
+            .map((inst: ApiItemInstanceResponse) => ({
               id: Number(inst.id || inst.id_item_instance),
               kode_asset: inst.kode_asset || inst.kode_unit || `Asset-${inst.id}`,
               id_perangkat: Number(inst.id_perangkat),
@@ -127,7 +145,7 @@ export default function LoanModal({ onClose, onSuccess, onSubmitLoan }: LoanModa
         }));
 
         setInventory(grouped.filter((g) => g.assets.length > 0));
-      } catch (err: any) {
+      } catch {
         setErrorMessage('Gagal memuat data formulir.');
       } finally {
         setLoading(false);
@@ -137,7 +155,6 @@ export default function LoanModal({ onClose, onSuccess, onSubmitLoan }: LoanModa
     fetchData();
   }, []);
 
-  // Close Dropdowns on Click Outside
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
       if (barangDropdownRef.current && !barangDropdownRef.current.contains(e.target as Node)) {
@@ -185,8 +202,12 @@ export default function LoanModal({ onClose, onSuccess, onSubmitLoan }: LoanModa
         status: 'aktif',
       });
       onSuccess();
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Gagal menyimpan peminjaman.');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setErrorMessage(err.message);
+      } else {
+        setErrorMessage('Gagal menyimpan peminjaman.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -213,7 +234,6 @@ export default function LoanModal({ onClose, onSuccess, onSubmitLoan }: LoanModa
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Barang Dropdown */}
             <div className="space-y-1 relative" ref={barangDropdownRef}>
               <label className="text-xs font-bold text-outline uppercase tracking-wider">Pilih Nama Barang</label>
               <button
@@ -256,7 +276,6 @@ export default function LoanModal({ onClose, onSuccess, onSubmitLoan }: LoanModa
               )}
             </div>
 
-            {/* Asset Dropdown */}
             <div className="space-y-1 relative" ref={assetDropdownRef}>
               <label className="text-xs font-bold text-outline uppercase tracking-wider">Kode Asset / Unit</label>
               <button
@@ -312,7 +331,6 @@ export default function LoanModal({ onClose, onSuccess, onSubmitLoan }: LoanModa
             </div>
           </div>
 
-          {/* Identitas Peminjam */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-outline uppercase tracking-wider">Nama Lengkap</label>
@@ -325,7 +343,6 @@ export default function LoanModal({ onClose, onSuccess, onSubmitLoan }: LoanModa
               />
             </div>
 
-            {/* GET KELAS TERFILTER BERDASARKAN JURUSAN USER LOGGED IN */}
             <div className="space-y-1">
               <label className="text-xs font-bold text-outline uppercase tracking-wider">Kelas</label>
               <select
@@ -357,7 +374,6 @@ export default function LoanModal({ onClose, onSuccess, onSubmitLoan }: LoanModa
             </div>
           </div>
 
-          {/* Batas Waktu */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-bold text-outline uppercase tracking-wider">Tanggal Mulai</label>

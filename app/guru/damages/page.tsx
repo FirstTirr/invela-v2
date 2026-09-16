@@ -6,10 +6,35 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertTriangle, Send, Package, Cpu, Loader2, Search, ChevronDown, Check, GraduationCap, Lock } from 'lucide-react';
 import { apiPerangkat, apiItemInstance, apiKerusakan, apiJurusan, Perangkat, ItemInstance, Jurusan } from '@/lib/api';
 
+interface ExtendedPerangkat extends Perangkat {
+  id_jurusan?: number;
+  idJurusan?: number;
+  jurusan?: { id?: number; nama_jurusan?: string };
+  labor?: { id_jurusan?: number; idJurusan?: number; jurusan?: { id?: number; nama_jurusan?: string } };
+  namaPerangkat?: string;
+  nama?: string;
+}
+
+interface ExtendedJurusan extends Jurusan {
+  jurusan?: string;
+  nama?: string;
+}
+
+interface ExtendedItemInstance extends ItemInstance {
+  id_perangkat?: number;
+  idPerangkat?: number;
+  perangkat?: { id?: number };
+  kode_unit?: string;
+  kodeUnit?: string;
+  nomor_seri?: string;
+  status_kondisi?: string;
+  kondisi?: string;
+}
+
 export default function LaporKerusakanBarang() {
-  const [jurusanList, setJurusanList] = useState<Jurusan[]>([]);
-  const [perangkatList, setPerangkatList] = useState<Perangkat[]>([]);
-  const [instanceList, setInstanceList] = useState<ItemInstance[]>([]);
+  const [jurusanList, setJurusanList] = useState<ExtendedJurusan[]>([]);
+  const [perangkatList, setPerangkatList] = useState<ExtendedPerangkat[]>([]);
+  const [instanceList, setInstanceList] = useState<ExtendedItemInstance[]>([]);
 
   // State Pilihan UI
   const [selectedJurusanId, setSelectedJurusanId] = useState<number | ''>('');
@@ -20,22 +45,26 @@ export default function LaporKerusakanBarang() {
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // State untuk Dropdown Search Jurusan
+  // State Dropdown
   const [searchJurusan, setSearchJurusan] = useState('');
   const [isJurusanOpen, setIsJurusanOpen] = useState(false);
   const dropdownJurusanRef = useRef<HTMLDivElement>(null);
 
-  // State untuk Dropdown Search Perangkat
   const [searchPerangkat, setSearchPerangkat] = useState('');
   const [isPerangkatOpen, setIsPerangkatOpen] = useState(false);
   const dropdownPerangkatRef = useRef<HTMLDivElement>(null);
 
-  // State untuk Dropdown Search Instance / Kode Unit
   const [searchInstance, setSearchInstance] = useState('');
   const [isInstanceOpen, setIsInstanceOpen] = useState(false);
   const dropdownInstanceRef = useRef<HTMLDivElement>(null);
 
-  // Fetch Master Data (Jurusan, Perangkat, ItemInstance)
+  // Helper untuk mengekstrak status asli dari objek instance
+  const getItemStatus = (inst: ExtendedItemInstance): string => {
+    const rawStatus = inst.status || inst.status_kondisi || inst.kondisi || '';
+    return rawStatus.toString().trim().toLowerCase();
+  };
+
+  // Fetch Master Data
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -45,10 +74,10 @@ export default function LaporKerusakanBarang() {
           apiPerangkat.getAll(),
           apiItemInstance.getAll(),
         ]);
-        setJurusanList(jurusanRes || []);
-        setPerangkatList(perangkatRes || []);
-        setInstanceList(instanceRes || []);
-      } catch (err: any) {
+        setJurusanList((jurusanRes || []) as ExtendedJurusan[]);
+        setPerangkatList((perangkatRes || []) as ExtendedPerangkat[]);
+        setInstanceList((instanceRes || []) as ExtendedItemInstance[]);
+      } catch (err: unknown) {
         console.error('Gagal mengambil data:', err);
       } finally {
         setIsLoadingData(false);
@@ -75,17 +104,23 @@ export default function LaporKerusakanBarang() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 1. FILTER LIST JURUSAN (Search Input)
-  const filteredJurusanList = jurusanList.filter((j: any) => {
+  // Format Kode Asset beserta Statusnya
+  const getInstanceLabel = (inst: ExtendedItemInstance) => {
+    const kode = inst.kode_asset || inst.kode_unit || inst.kodeUnit || inst.nomor_seri || `Unit ID #${inst.id}`;
+    const status = getItemStatus(inst) || 'aktif';
+    return `${kode} (${status})`;
+  };
+
+  // 1. FILTER LIST JURUSAN
+  const filteredJurusanList = jurusanList.filter((j) => {
     const name = j.nama_jurusan || j.jurusan || j.nama || '';
     return name.toLowerCase().includes(searchJurusan.toLowerCase());
   });
 
-  // 2. FILTER PERANGKAT BERDASARKAN JURUSAN YANG DIPILIH
-  const availablePerangkat = perangkatList.filter((item: any) => {
+  // 2. FILTER PERANGKAT BERDASARKAN JURUSAN
+  const availablePerangkat = perangkatList.filter((item) => {
     if (!selectedJurusanId) return false;
 
-    // Match via ID Jurusan dari Perangkat / Laboratoriumnya
     const jId = Number(
       item.id_jurusan ?? 
       item.idJurusan ?? 
@@ -100,48 +135,56 @@ export default function LaporKerusakanBarang() {
       return jId === Number(selectedJurusanId);
     }
 
-    // Fallback Text Match
-    const selectedJurusanObj: any = jurusanList.find((j) => Number(j.id) === Number(selectedJurusanId));
+    const selectedJurusanObj = jurusanList.find((j) => Number(j.id) === Number(selectedJurusanId));
     const targetJName = (selectedJurusanObj?.nama_jurusan || selectedJurusanObj?.jurusan || '').toLowerCase();
     const itemJName = (item.jurusan?.nama_jurusan || item.labor?.jurusan?.nama_jurusan || '').toLowerCase();
 
     return targetJName && itemJName ? itemJName.includes(targetJName) || targetJName.includes(itemJName) : true;
   });
 
-  const filteredPerangkatList = availablePerangkat.filter((item: any) => {
+  const filteredPerangkatList = availablePerangkat.filter((item) => {
     const name = item.nama_perangkat || item.namaPerangkat || item.nama || '';
     return name.toLowerCase().includes(searchPerangkat.toLowerCase());
   });
 
-  // 3. FILTER INSTANCE BERDASARKAN PERANGKAT YANG DIPILIH
-  const availableInstances = instanceList.filter((inst: any) => {
+  // 3. FILTER INSTANCE: HANYA UNIT DENGAN STATUS 'aktif'
+  const availableInstances = instanceList.filter((inst) => {
     if (!selectedPerangkatId) return false;
     const perangkatId = inst.id_perangkat || inst.idPerangkat || inst.perangkat?.id;
-    return Number(perangkatId) === Number(selectedPerangkatId);
+    const isMatchingPerangkat = Number(perangkatId) === Number(selectedPerangkatId);
+    
+    const currentStatus = getItemStatus(inst);
+
+    // Jika status kosong, anggap aktif. Tapi jika ada isinya, blokir jika 'rusak', 'dipinjam', 'pinjam', 'perbaikan', 'nonaktif'
+    const isBlockedStatus = ['rusak', 'dipinjam', 'pinjam', 'perbaikan', 'nonaktif', 'maintenance'].some(
+      (blocked) => currentStatus.includes(blocked)
+    );
+
+    return isMatchingPerangkat && !isBlockedStatus;
   });
 
-  const filteredInstanceList = availableInstances.filter((inst: any) => {
-    const label = `${inst.kode_unit || inst.kodeUnit || inst.nomor_seri || `Unit ID #${inst.id}`} (${inst.status || 'Aktif'})`;
+  const filteredInstanceList = availableInstances.filter((inst) => {
+    const label = getInstanceLabel(inst);
     return label.toLowerCase().includes(searchInstance.toLowerCase());
   });
 
-  // Label Pilihan Saat Ini
-  const selectedJurusanObj: any = jurusanList.find((j: any) => Number(j.id) === Number(selectedJurusanId));
+  // Label Pilihan UI
+  const selectedJurusanObj = jurusanList.find((j) => Number(j.id) === Number(selectedJurusanId));
   const selectedJurusanName = selectedJurusanObj 
     ? (selectedJurusanObj.nama_jurusan || selectedJurusanObj.jurusan || selectedJurusanObj.nama) 
     : '';
 
-  const selectedPerangkatObj: any = availablePerangkat.find((p: any) => Number(p.id) === Number(selectedPerangkatId));
+  const selectedPerangkatObj = availablePerangkat.find((p) => Number(p.id) === Number(selectedPerangkatId));
   const selectedPerangkatName = selectedPerangkatObj 
     ? (selectedPerangkatObj.nama_perangkat || selectedPerangkatObj.namaPerangkat || selectedPerangkatObj.nama) 
     : '';
 
-  const selectedInstanceObj: any = availableInstances.find((inst: any) => Number(inst.id) === Number(selectedInstanceId));
+  const selectedInstanceObj = availableInstances.find((inst) => Number(inst.id) === Number(selectedInstanceId));
   const selectedInstanceName = selectedInstanceObj 
-    ? `${selectedInstanceObj.kode_unit || selectedInstanceObj.kodeUnit || selectedInstanceObj.nomor_seri || `Unit ID #${selectedInstanceObj.id}`} (${selectedInstanceObj.status || 'Aktif'})` 
+    ? getInstanceLabel(selectedInstanceObj)
     : '';
 
-  // SUBMIT FORM: Hanya mengirim payload yang dibutuhkan backend
+  // SUBMIT FORM
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -153,7 +196,6 @@ export default function LaporKerusakanBarang() {
     try {
       setIsSubmitting(true);
 
-      // PAYLOAD BERSIH (DATA JURUSAN TIDAK DIKIRIM KE BACKEND)
       await apiKerusakan.create({
         id_item_instance: Number(selectedInstanceId),
         deskripsi: deskripsi.trim(),
@@ -170,8 +212,9 @@ export default function LaporKerusakanBarang() {
       setSearchPerangkat('');
       setSearchInstance('');
       setDeskripsi('');
-    } catch (err: any) {
-      alert(`Gagal mengirim laporan: ${err.message}`);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      alert(`Gagal mengirim laporan: ${errorMsg}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -181,7 +224,7 @@ export default function LaporKerusakanBarang() {
     <PageAnimateWrapper>
       <div className="w-full flex flex-col items-center justify-center space-y-8 font-sans antialiased tracking-tight min-h-[calc(100vh-80px)] py-8">
         
-        {/* Header Rata Tengah */}
+        {/* Header */}
         <div className="text-center max-w-2xl">
           <h1 className="text-3xl font-bold text-on-surface">Pelaporan Insiden & Kerusakan Barang</h1>
           <p className="text-base text-on-surface-variant mt-2 font-medium">
@@ -206,7 +249,7 @@ export default function LaporKerusakanBarang() {
             ) : (
               <form onSubmit={handleSubmit} className="space-y-6">
                 
-                {/* 1. SEARCHABLE SELECT: Pilih Jurusan */}
+                {/* 1. JURUSAN */}
                 <div className="space-y-2 relative" ref={dropdownJurusanRef}>
                   <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
                     <GraduationCap className="w-4 h-4 text-primary" /> 1. Pilih Jurusan
@@ -222,7 +265,6 @@ export default function LaporKerusakanBarang() {
                     <ChevronDown className={`w-4 h-4 text-outline transition-transform duration-200 ${isJurusanOpen ? 'rotate-180' : ''}`} />
                   </div>
 
-                  {/* Dropdown Menu Jurusan */}
                   {isJurusanOpen && (
                     <div className="absolute z-30 w-full mt-1 bg-white border border-surface-container-high rounded-xl shadow-lg p-2 space-y-2 max-h-64 overflow-hidden flex flex-col">
                       <div className="relative shrink-0">
@@ -240,7 +282,7 @@ export default function LaporKerusakanBarang() {
                         {filteredJurusanList.length === 0 ? (
                           <p className="p-3 text-xs text-center text-outline">Jurusan tidak ditemukan</p>
                         ) : (
-                          filteredJurusanList.map((j: any) => {
+                          filteredJurusanList.map((j) => {
                             const name = j.nama_jurusan || j.jurusan || j.nama;
                             const isSelected = Number(j.id) === Number(selectedJurusanId);
                             return (
@@ -248,8 +290,8 @@ export default function LaporKerusakanBarang() {
                                 key={j.id}
                                 onClick={() => {
                                   setSelectedJurusanId(j.id);
-                                  setSelectedPerangkatId(''); // Reset pilihan perangkat
-                                  setSelectedInstanceId(''); // Reset pilihan unit
+                                  setSelectedPerangkatId('');
+                                  setSelectedInstanceId('');
                                   setSearchPerangkat('');
                                   setSearchInstance('');
                                   setIsJurusanOpen(false);
@@ -269,7 +311,7 @@ export default function LaporKerusakanBarang() {
                   )}
                 </div>
 
-                {/* 2. SEARCHABLE SELECT: Pilih Barang / Model Perangkat */}
+                {/* 2. PERANGKAT */}
                 <div className="space-y-2 relative" ref={dropdownPerangkatRef}>
                   <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
                     <Package className="w-4 h-4 text-primary" /> 2. Pilih Barang / Model Perangkat
@@ -297,7 +339,6 @@ export default function LaporKerusakanBarang() {
                     )}
                   </div>
 
-                  {/* Dropdown Menu Perangkat */}
                   {isPerangkatOpen && selectedJurusanId && (
                     <div className="absolute z-30 w-full mt-1 bg-white border border-surface-container-high rounded-xl shadow-lg p-2 space-y-2 max-h-64 overflow-hidden flex flex-col">
                       <div className="relative shrink-0">
@@ -317,7 +358,7 @@ export default function LaporKerusakanBarang() {
                             Tidak ada barang terdaftar di jurusan ini
                           </p>
                         ) : (
-                          filteredPerangkatList.map((item: any) => {
+                          filteredPerangkatList.map((item) => {
                             const name = item.nama_perangkat || item.namaPerangkat || item.nama;
                             const isSelected = Number(item.id) === Number(selectedPerangkatId);
                             return (
@@ -325,7 +366,7 @@ export default function LaporKerusakanBarang() {
                                 key={item.id}
                                 onClick={() => {
                                   setSelectedPerangkatId(item.id);
-                                  setSelectedInstanceId(''); // Reset unit ketika perangkat berganti
+                                  setSelectedInstanceId('');
                                   setSearchInstance('');
                                   setIsPerangkatOpen(false);
                                 }}
@@ -344,7 +385,7 @@ export default function LaporKerusakanBarang() {
                   )}
                 </div>
 
-                {/* 3. SEARCHABLE SELECT: Pilih Kode Unit / Item Instance */}
+                {/* 3. ITEM INSTANCE (KODE ASSET) */}
                 <div className="space-y-2 relative" ref={dropdownInstanceRef}>
                   <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
                     <Cpu className="w-4 h-4 text-primary" /> 3. Pilih Kode Unit / Item Instance
@@ -362,11 +403,11 @@ export default function LaporKerusakanBarang() {
                         : 'bg-white text-on-surface cursor-pointer hover:border-primary/50'
                     }`}
                   >
-                    <span className={selectedInstanceName ? 'text-on-surface font-semibold' : 'text-slate-400'}>
+                    <span className={selectedInstanceName ? 'text-on-surface font-semibold font-mono' : 'text-slate-400'}>
                       {!selectedPerangkatId 
                         ? 'Pilih barang terlebih dahulu' 
                         : availableInstances.length === 0 
-                          ? 'Tidak ada unit tersedia' 
+                          ? 'Tidak ada unit aktif yang dapat dilaporkan' 
                           : selectedInstanceName || '-- Pilih Kode Unit Spesifik --'}
                     </span>
                     {!selectedPerangkatId ? (
@@ -376,14 +417,13 @@ export default function LaporKerusakanBarang() {
                     )}
                   </div>
 
-                  {/* Dropdown Menu Instance */}
                   {isInstanceOpen && selectedPerangkatId && (
                     <div className="absolute z-30 w-full mt-1 bg-white border border-surface-container-high rounded-xl shadow-lg p-2 space-y-2 max-h-64 overflow-hidden flex flex-col">
                       <div className="relative shrink-0">
                         <Search className="w-4 h-4 text-outline absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
                           type="text"
-                          placeholder="Cari kode unit / serial..."
+                          placeholder="Cari kode asset..."
                           value={searchInstance}
                           onChange={(e) => setSearchInstance(e.target.value)}
                           className="w-full pl-9 pr-3 py-2 text-sm border border-surface-container rounded-lg focus:outline-none focus:border-primary font-medium"
@@ -394,8 +434,8 @@ export default function LaporKerusakanBarang() {
                         {filteredInstanceList.length === 0 ? (
                           <p className="p-3 text-xs text-center text-outline">Kode unit tidak ditemukan</p>
                         ) : (
-                          filteredInstanceList.map((inst: any) => {
-                            const label = `${inst.kode_unit || inst.kodeUnit || inst.nomor_seri || `Unit ID #${inst.id}`} (${inst.status || 'Aktif'})`;
+                          filteredInstanceList.map((inst) => {
+                            const label = getInstanceLabel(inst);
                             const isSelected = Number(inst.id) === Number(selectedInstanceId);
                             return (
                               <div
@@ -404,7 +444,7 @@ export default function LaporKerusakanBarang() {
                                   setSelectedInstanceId(inst.id);
                                   setIsInstanceOpen(false);
                                 }}
-                                className={`px-3 py-2.5 rounded-lg text-sm font-medium cursor-pointer flex items-center justify-between transition-colors ${
+                                className={`px-3 py-2.5 rounded-lg text-sm font-medium font-mono cursor-pointer flex items-center justify-between transition-colors ${
                                   isSelected ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-surface-low text-on-surface'
                                 }`}
                               >
@@ -420,26 +460,26 @@ export default function LaporKerusakanBarang() {
 
                   {selectedPerangkatId && availableInstances.length > 0 && (
                     <p className="text-xs text-outline font-medium pl-1">
-                      *Menampilkan {availableInstances.length} unit terdaftar untuk barang ini.
+                      *Menampilkan {availableInstances.length} unit berstatus aktif yang siap dilaporkan. Jika unit yang dimaksud tidak muncul, pastikan status unit bukan &apos;rusak&apos;, &apos;dipinjam&apos;, &apos;perbaikan&apos;, atau &apos;nonaktif&apos;.
                     </p>
                   )}
                 </div>
 
-                {/* 4. Detail Kerusakan (Deskripsi) */}
+                {/* 4. DESKRIPSI */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-outline uppercase tracking-wider">
                     4. Rincian & Kronologi Kerusakan
                   </label>
                   <textarea 
                     required
-                    placeholder="Contoh: Layar monitor bergaris horizontal merah, PC mati total pas dinyalakan, tombol klik kanan mouse macet..." 
+                    placeholder="Contoh: Layar monitor bergaris horizontal merah, PC mati total pas dinyalakan..." 
                     value={deskripsi}
                     onChange={(e) => setDeskripsi(e.target.value)}
-                    className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface placeholder:text-outline/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 h-32 rotate-0 resize-none leading-relaxed font-medium shadow-sm"
+                    className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface placeholder:text-outline/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 h-32 resize-none leading-relaxed font-medium shadow-sm"
                   />
                 </div>
 
-                {/* Submit Button */}
+                {/* SUBMIT BUTTON */}
                 <div className="pt-6 border-t border-surface-container flex justify-center">
                   <button 
                     type="submit"

@@ -1,12 +1,20 @@
-// lib/api/laporan-kerusakan.ts
 import { ItemInstance } from './item-instance';
+
+export interface KerusakanUser {
+  id: number;
+  username?: string;
+  nama?: string;
+  name?: string;
+  role?: string;
+  email?: string;
+}
 
 export interface Kerusakan {
   id: number;
   id_item_instance: number;
   item_instance?: ItemInstance;
   id_user: number;
-  user?: any; // 👈 Ubah jadi any jika tipe User di users.ts belum ada/berbeda
+  user?: KerusakanUser | null;
   deskripsi: string;
   status: 'butuh tindakan' | 'sedang diperbaiki' | 'selesai' | string;
   created_at: string;
@@ -42,7 +50,7 @@ export const apiKerusakan = {
     });
     if (!res.ok) throw new Error('Gagal mengambil daftar kerusakan');
     const json = await res.json();
-    return json.data || [];
+    return (json.data || []) as Kerusakan[];
   },
 
   create: async (data: CreateKerusakanInput): Promise<Kerusakan> => {
@@ -56,7 +64,7 @@ export const apiKerusakan = {
     if (!res.ok) {
       throw new Error(json.message || 'Gagal membuat laporan kerusakan');
     }
-    return json.data;
+    return json.data as Kerusakan;
   },
 
   getById: async (id: number): Promise<Kerusakan> => {
@@ -65,7 +73,7 @@ export const apiKerusakan = {
     });
     if (!res.ok) throw new Error('Kerusakan tidak ditemukan');
     const json = await res.json();
-    return json.data;
+    return json.data as Kerusakan;
   },
 
   update: async (id: number, data: UpdateKerusakanInput): Promise<Kerusakan> => {
@@ -79,7 +87,7 @@ export const apiKerusakan = {
     if (!res.ok) {
       throw new Error(json.message || 'Gagal memperbarui laporan kerusakan');
     }
-    return json.data;
+    return json.data as Kerusakan;
   },
 
   delete: async (id: number): Promise<void> => {

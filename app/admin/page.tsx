@@ -5,8 +5,6 @@ import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Users, Building2, GraduationCap, Tags, Loader2, TrendingUp } from 'lucide-react';
 import Link from 'next/link';
 import * as API from '@/lib/api';
-
-// Import Recharts
 import {
   AreaChart,
   Area,
@@ -28,49 +26,56 @@ export default function AdminDashboardOverview() {
   });
 
   useEffect(() => {
-    setIsMounted(true);
-  }, []);
+    let active = true;
 
-  const fetchAdminStats = async () => {
-    try {
-      setLoading(true);
+    const fetchAdminStats = async () => {
+      try {
+        setLoading(true);
 
-      // Cek variasi nama export untuk API
-      const userApi = (API as any).apiUser || (API as any).apiUsers;
-      const laborApi = (API as any).apiLabor;
-      const jurusanApi = (API as any).apiJurusan;
-      const kategoriApi = (API as any).apiKategori;
+        const [usersData, laborData, jurusanData, kategoriData] = await Promise.all([
+          API.apiUsers?.getAll ? API.apiUsers.getAll().catch(() => []) : Promise.resolve([]),
+          API.apiLabor?.getAll ? API.apiLabor.getAll().catch(() => []) : Promise.resolve([]),
+          API.apiJurusan?.getAll ? API.apiJurusan.getAll().catch(() => []) : Promise.resolve([]),
+          API.apiKategori?.getAll ? API.apiKategori.getAll().catch(() => []) : Promise.resolve([])
+        ]);
 
-      const [usersData, laborData, jurusanData, kategoriData] = await Promise.all([
-        userApi?.getAll ? userApi.getAll().catch(() => []) : Promise.resolve([]),
-        laborApi?.getAll ? laborApi.getAll().catch(() => []) : Promise.resolve([]),
-        jurusanApi?.getAll ? jurusanApi.getAll().catch(() => []) : Promise.resolve([]),
-        kategoriApi?.getAll ? kategoriApi.getAll().catch(() => []) : Promise.resolve([])
-      ]);
+        if (active) {
+          setStats({
+            totalUser: Array.isArray(usersData) ? usersData.length : 0,
+            totalLabor: Array.isArray(laborData) ? laborData.length : 0,
+            totalJurusan: Array.isArray(jurusanData) ? jurusanData.length : 0,
+            totalKategori: Array.isArray(kategoriData) ? kategoriData.length : 0,
+          });
+        }
+      } catch (err: unknown) {
+        console.error("Gagal memuat statistik admin:", err);
+      } finally {
+        if (active) {
+          setLoading(false);
+          setIsMounted(true);
+        }
+      }
+    };
 
-      setStats({
-        totalUser: Array.isArray(usersData) ? usersData.length : 0,
-        totalLabor: Array.isArray(laborData) ? laborData.length : 0,
-        totalJurusan: Array.isArray(jurusanData) ? jurusanData.length : 0,
-        totalKategori: Array.isArray(kategoriData) ? kategoriData.length : 0,
-      });
-    } catch (err) {
-      console.error("Gagal memuat statistik admin:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
     fetchAdminStats();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  // Data ringkasan visualisasi grafik berdasarkan status master data
   const chartData = [
     { name: 'User', total: stats.totalUser },
     { name: 'Labor', total: stats.totalLabor },
     { name: 'Jurusan', total: stats.totalJurusan },
     { name: 'Kategori', total: stats.totalKategori },
+  ];
+
+  const statCards = [
+    { label: "Total User Terdaftar", value: stats.totalUser, unit: "Akun", icon: Users, subText: "Teknisi, Kabeng & Kaprog" },
+    { label: "Infrastruktur Labor", value: stats.totalLabor, unit: "Ruangan", icon: Building2, subText: "Aktif digunakan praktikum" },
+    { label: "Program Keahlian", value: stats.totalJurusan, unit: "Jurusan", icon: GraduationCap, subText: "Terintegrasi sistem" },
+    { label: "Kategori Inventaris", value: stats.totalKategori, unit: "Jenis", icon: Tags, subText: "Logistik klaster barang" },
   ];
 
   return (
@@ -84,106 +89,38 @@ export default function AdminDashboardOverview() {
           </p>
         </div>
 
-        {/* 4 Stat Cards */}
+        {/* Stat Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          
-          {/* Card 1: Total User */}
-          <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold text-outline tracking-wider uppercase">Total User Terdaftar</p>
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-primary mt-2" />
-                ) : (
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-4xl font-black text-on-surface tabular-nums">{stats.totalUser}</span>
-                    <span className="text-sm font-semibold text-outline">Akun</span>
+          {statCards.map((card, idx) => {
+            const Icon = card.icon;
+            return (
+              <div key={idx} className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-outline tracking-wider uppercase">{card.label}</p>
+                    {loading ? (
+                      <Loader2 className="w-6 h-6 animate-spin text-primary mt-2" />
+                    ) : (
+                      <div className="flex items-baseline gap-2 mt-2">
+                        <span className="text-4xl font-black text-on-surface tabular-nums">{card.value}</span>
+                        <span className="text-sm font-semibold text-outline">{card.unit}</span>
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                <Users className="w-6 h-6" />
-              </div>
-            </div>
-            <p className="text-xs font-medium text-outline border-t border-surface-container pt-3">
-              Teknisi, Kabeng & Kaprog
-            </p>
-          </div>
-
-          {/* Card 2: Labor */}
-          <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold text-outline tracking-wider uppercase">Infrastruktur Labor</p>
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-primary mt-2" />
-                ) : (
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-4xl font-black text-on-surface tabular-nums">{stats.totalLabor}</span>
-                    <span className="text-sm font-semibold text-outline">Ruangan</span>
+                  <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
+                    <Icon className="w-6 h-6" />
                   </div>
-                )}
+                </div>
+                <p className="text-xs font-medium text-outline border-t border-surface-container pt-3">
+                  {card.subText}
+                </p>
               </div>
-              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                <Building2 className="w-6 h-6" />
-              </div>
-            </div>
-            <p className="text-xs font-medium text-outline border-t border-surface-container pt-3">
-              Aktif digunakan praktikum
-            </p>
-          </div>
-
-          {/* Card 3: Jurusan */}
-          <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold text-outline tracking-wider uppercase">Program Keahlian</p>
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-primary mt-2" />
-                ) : (
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-4xl font-black text-on-surface tabular-nums">{stats.totalJurusan}</span>
-                    <span className="text-sm font-semibold text-outline">Jurusan</span>
-                  </div>
-                )}
-              </div>
-              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                <GraduationCap className="w-6 h-6" />
-              </div>
-            </div>
-            <p className="text-xs font-medium text-outline border-t border-surface-container pt-3">
-              Terintegrasi sistem
-            </p>
-          </div>
-
-          {/* Card 4: Kategori */}
-          <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs font-bold text-outline tracking-wider uppercase">Kategori Inventaris</p>
-                {loading ? (
-                  <Loader2 className="w-6 h-6 animate-spin text-primary mt-2" />
-                ) : (
-                  <div className="flex items-baseline gap-2 mt-2">
-                    <span className="text-4xl font-black text-on-surface tabular-nums">{stats.totalKategori}</span>
-                    <span className="text-sm font-semibold text-outline">Jenis</span>
-                  </div>
-                )}
-              </div>
-              <div className="p-3 bg-blue-50 text-blue-600 rounded-xl">
-                <Tags className="w-6 h-6" />
-              </div>
-            </div>
-            <p className="text-xs font-medium text-outline border-t border-surface-container pt-3">
-              Logistik klaster barang
-            </p>
-          </div>
-
+            );
+          })}
         </div>
 
         {/* Lower Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
           {/* Grafik Recharts Card */}
           <div className="lg:col-span-2 p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4">
             <div className="flex items-center justify-between border-b border-surface-container pb-3">
@@ -211,18 +148,8 @@ export default function AdminDashboardOverview() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                    <XAxis 
-                      dataKey="name" 
-                      tickLine={false} 
-                      axisLine={false} 
-                      tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} 
-                    />
-                    <YAxis 
-                      tickLine={false} 
-                      axisLine={false} 
-                      tick={{ fill: '#64748b', fontSize: 12 }} 
-                      allowDecimals={false} 
-                    />
+                    <XAxis dataKey="name" tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }} />
+                    <YAxis tickLine={false} axisLine={false} tick={{ fill: '#64748b', fontSize: 12 }} allowDecimals={false} />
                     <Tooltip 
                       contentStyle={{ 
                         backgroundColor: '#ffffff', 
@@ -233,14 +160,7 @@ export default function AdminDashboardOverview() {
                         fontWeight: '600'
                       }} 
                     />
-                    <Area 
-                      type="monotone" 
-                      dataKey="total" 
-                      stroke="#2563eb" 
-                      strokeWidth={3} 
-                      fillOpacity={1} 
-                      fill="url(#colorTotal)" 
-                    />
+                    <Area type="monotone" dataKey="total" stroke="#2563eb" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" />
                   </AreaChart>
                 </ResponsiveContainer>
               )}
@@ -283,7 +203,6 @@ export default function AdminDashboardOverview() {
               </Link>
             </div>
           </div>
-
         </div>
       </div>
     </PageAnimateWrapper>

@@ -78,9 +78,13 @@ export default function KaprogItemsPage() {
         });
 
         setItems(combined);
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Gagal memuat inventaris:", err);
-        setError(err.message || 'Gagal memuat data inventaris');
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Gagal memuat data inventaris');
+        }
       } finally {
         setLoading(false);
       }

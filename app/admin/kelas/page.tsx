@@ -1,10 +1,28 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Trash2, Edit, X, Save } from 'lucide-react';
 import { apiKelas, apiJurusan, Kelas, Jurusan } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
+
+type ExtendedKelas = Kelas & {
+  id_jurusan?: number;
+  idJurusan?: number;
+  ID_Jurusan?: number;
+  IDJurusan?: number;
+  IdJurusan?: number;
+  jurusan_id?: number;
+  JurusanId?: number;
+  jurusan?: Jurusan & { nama_jurusan?: string; jurusan?: string; NamaJurusan?: string; Nama_Jurusan?: string };
+  Jurusan?: Jurusan & { nama_jurusan?: string; jurusan?: string; NamaJurusan?: string; Nama_Jurusan?: string };
+  dataJurusan?: Jurusan & { nama_jurusan?: string; jurusan?: string; NamaJurusan?: string; Nama_Jurusan?: string };
+};
+
+type ExtendedJurusan = Jurusan & {
+  jurusan?: string;
+  NamaJurusan?: string;
+};
 
 export default function ReadKelasPage() {
   const [kelasList, setKelasList] = useState<Kelas[]>([]);
@@ -18,7 +36,7 @@ export default function ReadKelasPage() {
   const [editJurusanId, setEditJurusanId] = useState<number | ''>('');
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [kelasData, jurusanData] = await Promise.all([
@@ -28,15 +46,51 @@ export default function ReadKelasPage() {
       setKelasList(kelasData);
       setJurusanList(jurusanData);
       setError(null);
-    } catch (err: any) {
-      setError(err.message || 'Terjadi kesalahan sistem.');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Terjadi kesalahan sistem.');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchData();
+    let isMounted = true;
+
+    const initData = async () => {
+      try {
+        const [kelasData, jurusanData] = await Promise.all([
+          apiKelas.getAll(),
+          apiJurusan.getAll()
+        ]);
+        if (isMounted) {
+          setKelasList(kelasData);
+          setJurusanList(jurusanData);
+          setError(null);
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError('Terjadi kesalahan sistem.');
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initData();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleDelete = async (id: number) => {
@@ -44,15 +98,17 @@ export default function ReadKelasPage() {
     try {
       await apiKelas.delete(id);
       setKelasList(prev => prev.filter(item => item.id !== id));
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      alert(message);
     }
   };
 
-  const handleEditClick = (item: any) => {
+  const handleEditClick = (item: Kelas) => {
+    const extItem = item as ExtendedKelas;
     setSelectedKelas(item);
     setEditValue(item.kelas);
-    const currentId = item.id_jurusan ?? item.idJurusan ?? item.ID_Jurusan ?? item.IDJurusan ?? item.jurusan?.id ?? item.Jurusan?.id ?? '';
+    const currentId = extItem.id_jurusan ?? extItem.idJurusan ?? extItem.ID_Jurusan ?? extItem.IDJurusan ?? extItem.jurusan?.id ?? extItem.Jurusan?.id ?? '';
     setEditJurusanId(currentId);
     setIsOpenEditModal(true);
   };
@@ -67,18 +123,21 @@ export default function ReadKelasPage() {
       setKelasList(prev => prev.map(item => item.id === selectedKelas.id ? updatedData : item));
       setIsOpenEditModal(false);
       setSelectedKelas(null);
-      fetchData();
-    } catch (err: any) {
-      alert(err.message || 'Gagal memperbarui kelas');
+      await fetchData();
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Gagal memperbarui kelas';
+      alert(message);
     } finally {
       setIsSaving(false);
     }
   };
 
   // Helper untuk membaca nama jurusan secara aman dari berbagai variasi backend
-  const getJurusanName = (item: any) => {
+  const getJurusanName = (item: Kelas) => {
+    const extItem = item as ExtendedKelas;
+
     // 1. Cek objek relasi dari backend
-    const relObj = item.jurusan || item.Jurusan || item.dataJurusan;
+    const relObj = extItem.jurusan || extItem.Jurusan || extItem.dataJurusan;
     if (relObj) {
       const name = relObj.nama_jurusan || relObj.jurusan || relObj.NamaJurusan || relObj.Nama_Jurusan;
       if (name) return name;
@@ -86,18 +145,19 @@ export default function ReadKelasPage() {
     
     // 2. Cek ID foreign key lalu cari manual ke state jurusanList
     const targetId = 
-      item.id_jurusan ?? 
-      item.idJurusan ?? 
-      item.ID_Jurusan ?? 
-      item.IDJurusan ?? 
-      item.IdJurusan ?? 
-      item.jurusan_id ?? 
-      item.JurusanId;
+      extItem.id_jurusan ?? 
+      extItem.idJurusan ?? 
+      extItem.ID_Jurusan ?? 
+      extItem.IDJurusan ?? 
+      extItem.IdJurusan ?? 
+      extItem.jurusan_id ?? 
+      extItem.JurusanId;
 
     if (targetId && jurusanList.length > 0) {
-      const found = jurusanList.find((j: any) => Number(j.id) === Number(targetId));
+      const found = jurusanList.find((j) => Number(j.id) === Number(targetId));
       if (found) {
-        return found.nama_jurusan || (found as any).jurusan || (found as any).NamaJurusan || '-';
+        const extFound = found as ExtendedJurusan;
+        return found.nama_jurusan || extFound.jurusan || extFound.NamaJurusan || '-';
       }
     }
     
@@ -205,9 +265,12 @@ export default function ReadKelasPage() {
                       className="w-full px-4 py-3 border border-surface-container-high rounded-lg text-base text-on-surface bg-white focus:outline-none focus:border-primary font-medium shadow-sm cursor-pointer"
                     >
                       <option value="">-- Pilih Jurusan --</option>
-                      {jurusanList.map((j: any) => (
-                        <option key={j.id} value={j.id}>{j.nama_jurusan || j.jurusan}</option>
-                      ))}
+                      {jurusanList.map((j) => {
+                        const extJ = j as ExtendedJurusan;
+                        return (
+                          <option key={j.id} value={j.id}>{j.nama_jurusan || extJ.jurusan}</option>
+                        );
+                      })}
                     </select>
                   </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { 
   Building2, 
@@ -12,7 +12,9 @@ import {
   Landmark
 } from 'lucide-react';
 import Link from 'next/link';
-import * as API from '@/lib/api';
+import { apiItemInstance, apiKerusakan } from '@/lib/api';
+import { ItemInstance } from '@/lib/api/item-instance';
+import { Kerusakan } from '@/lib/api/laporan-kerusakan';
 
 import {
   AreaChart,
@@ -23,6 +25,12 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
+
+interface ExtendedKerusakan extends Kerusakan {
+  biaya?: number;
+  total_biaya?: number;
+  cost?: number;
+}
 
 export default function SaprasDashboard() {
   const [loading, setLoading] = useState(true);
@@ -35,43 +43,43 @@ export default function SaprasDashboard() {
   });
 
   useEffect(() => {
-    setIsMounted(true);
+    const timer = requestAnimationFrame(() => {
+      setIsMounted(true);
+    });
+    return () => cancelAnimationFrame(timer);
   }, []);
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = useCallback(async () => {
     try {
       setLoading(true);
 
-      const itemInstanceApi = (API as any).apiItemInstance;
-      const perbaikanApi = (API as any).apiPerbaikan || (API as any).apiLaporanKerusakan;
-
       // Sapras mengambil DATA GLOBAL seluruh sekolah (tanpa filter jurusan)
       const [instancesData, repairData] = await Promise.all([
-        itemInstanceApi?.getAll ? itemInstanceApi.getAll().catch(() => []) : Promise.resolve([]),
-        perbaikanApi?.getAll ? perbaikanApi.getAll().catch(() => []) : Promise.resolve([])
+        apiItemInstance.getAll().catch(() => []),
+        apiKerusakan.getAll().catch(() => [])
       ]);
 
-      const allInstances = Array.isArray(instancesData) ? instancesData : [];
-      const allRepairs = Array.isArray(repairData) ? repairData : [];
+      const allInstances = (Array.isArray(instancesData) ? instancesData : []) as ItemInstance[];
+      const allRepairs = (Array.isArray(repairData) ? repairData : []) as ExtendedKerusakan[];
 
       // 1. Total Seluruh Aset Sekolah
       const totalAsetSekolah = allInstances.length;
 
       // 2. Kondisi Baik (Semua item-instance sekolah yang siap pakai)
-      const kondisiBaik = allInstances.filter((i: any) => {
+      const kondisiBaik = allInstances.filter((i) => {
         const status = (i.status || '').toString().toLowerCase().trim();
         if (!status) return true;
         return ['baik', 'tersedia', 'normal', 'ready'].includes(status) || !status.includes('rusak');
       }).length;
 
       // 3. Barang Rusak / Perbaikan (Seluruh sekolah)
-      const barangRusak = allInstances.filter((i: any) => {
+      const barangRusak = allInstances.filter((i) => {
         const status = (i.status || '').toString().toLowerCase().trim();
         return status.includes('rusak') || status.includes('perbaikan') || status === 'maintenance';
       }).length;
 
       // 4. Akumulasi Seluruh Biaya Perbaikan Sekolah
-      const totalPengeluaran = allRepairs.reduce((acc: number, curr: any) => {
+      const totalPengeluaran = allRepairs.reduce((acc: number, curr) => {
         const biaya = Number(curr.biaya || curr.total_biaya || curr.cost || 0);
         return acc + (isNaN(biaya) ? 0 : biaya);
       }, 0);
@@ -83,16 +91,28 @@ export default function SaprasDashboard() {
         barangRusak,
       });
 
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Gagal memuat statistik Sapras:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchDashboardStats();
-  }, []);
+    let mounted = true;
+
+    const loadStats = async () => {
+      if (mounted) {
+        await fetchDashboardStats();
+      }
+    };
+
+    void loadStats();
+
+    return () => {
+      mounted = false;
+    };
+  }, [fetchDashboardStats]);
 
   const chartData = [
     { name: 'Total Aset', total: stats.totalAsetSekolah },
@@ -295,7 +315,7 @@ export default function SaprasDashboard() {
 
             <div className="space-y-3 pt-2">
               <Link
-                href="/sapras/perbaikan"
+                href="/sapras/damages"
                 className="p-3 bg-surface-low hover:bg-surface-container border border-surface-container-high rounded-xl flex items-center justify-between transition-all group"
               >
                 <div>
@@ -307,7 +327,7 @@ export default function SaprasDashboard() {
               </Link>
 
               <Link
-                href="/sapras/laporan"
+                href="/sapras/items"
                 className="p-3 bg-surface-low hover:bg-surface-container border border-surface-container-high rounded-xl flex items-center justify-between transition-all group"
               >
                 <div>

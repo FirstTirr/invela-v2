@@ -1,40 +1,57 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { X, FileText, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Labor } from '@/lib/api';
 import jsPDF from 'jspdf';
 import autoTable, { RowInput } from 'jspdf-autotable';
 
+export interface ExportDisplayItemInstance {
+  id: number;
+  status?: string;
+}
+
+export interface ExportDisplayItem {
+  id: number;
+  id_labor?: number | string;
+  nama_perangkat?: string;
+  namaPerangkat?: string;
+  jumlah_stok?: number;
+  jumlahStok?: number;
+  jumlah_baik?: number;
+  jumlah_dipinjam?: number;
+  jumlah_rusak?: number;
+  deskripsi?: string;
+  instances?: ExportDisplayItemInstance[];
+}
+
 interface ExportPdfModalProps {
   isOpen: boolean;
   onClose: () => void;
   laborList: Labor[];
-  displayItems: any[];
+  displayItems: ExportDisplayItem[];
 }
 
 export default function ExportPdfModal({ isOpen, onClose, laborList, displayItems }: ExportPdfModalProps) {
-  const [selectedLaborId, setSelectedLaborId] = useState<number>(laborList[0]?.id || 0);
+  // Derived state untuk default labor ID agar tidak butuh setState di useEffect
+  const defaultLaborId = laborList[0]?.id || 0;
+  const [selectedLaborId, setSelectedLaborId] = useState<number>(defaultLaborId);
+
   const [namaSekolah, setNamaSekolah] = useState('SMKN 4 Payakumbuh');
   const [tahunAjaran, setTahunAjaran] = useState('2025/2026');
   const [namaPencetak, setNamaPencetak] = useState('');
   const [jabatan, setJabatan] = useState('Kepala Laboratorium');
   const [nip, setNip] = useState('');
-  const [lokasiTanggal, setLokasiTanggal] = useState('');
+  
+  // Dynamic default state menggunakan fungsi pemformat tanggal
+  const [lokasiTanggal, setLokasiTanggal] = useState(() => {
+    const now = new Date();
+    const options: Intl.DateTimeFormatOptions = { month: 'long', year: 'numeric' };
+    return `Payakumbuh, ${now.toLocaleDateString('id-ID', options)}`;
+  });
+  
   const [isGenerating, setIsGenerating] = useState(false);
-
-  useEffect(() => {
-    if (isOpen) {
-      if (laborList.length > 0 && selectedLaborId === 0) {
-        setSelectedLaborId(laborList[0].id);
-      }
-      const now = new Date();
-      const options: Intl.DateTimeFormatOptions = { month: 'long', year: 'numeric' };
-      const formattedDate = now.toLocaleDateString('id-ID', options);
-      setLokasiTanggal(`Payakumbuh, ${formattedDate}`);
-    }
-  }, [isOpen, laborList]);
 
   if (!isOpen) return null;
 
@@ -43,11 +60,12 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
 
     try {
       setIsGenerating(true);
-      const currentLabor = laborList.find(l => l.id === Number(selectedLaborId));
+      const activeLaborId = selectedLaborId || defaultLaborId;
+      const currentLabor = laborList.find(l => l.id === Number(activeLaborId));
       const laborName = currentLabor ? currentLabor.labor : 'Laboratorium';
 
       // Filter item berdasarkan labor yang dipilih
-      const filteredItems = displayItems.filter(item => Number(item.id_labor) === Number(selectedLaborId));
+      const filteredItems = displayItems.filter(item => Number(item.id_labor) === Number(activeLaborId));
 
       const doc = new jsPDF();
 
@@ -61,7 +79,7 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
       doc.text(laborName.toUpperCase(), doc.internal.pageSize.getWidth() / 2, 35, { align: "center" });
       doc.text(`Tahun Ajaran: ${tahunAjaran}`, doc.internal.pageSize.getWidth() / 2, 42, { align: "center" });
 
-      // Structure Header Bertingkat dengan Tipe RowInput[]
+      // Structure Header Bertingkat
       const tableHead: RowInput[] = [
         [
           { content: 'No', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
@@ -83,13 +101,13 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
       filteredItems.forEach((item, index) => {
         const instances = item.instances || [];
         
-        const baikCount = item.jumlah_baik ?? instances.filter((i: any) => i.status === 'aktif' || i.status === 'baik').length;
-        const dipinjamCount = item.jumlah_dipinjam ?? instances.filter((i: any) => i.status === 'dipinjam').length;
-        const rusakCount = item.jumlah_rusak ?? instances.filter((i: any) => i.status === 'rusak' || i.status === 'perbaikan' || i.status === 'nonaktif').length;
+        const baikCount = item.jumlah_baik ?? instances.filter(i => i.status === 'aktif' || i.status === 'baik').length;
+        const dipinjamCount = item.jumlah_dipinjam ?? instances.filter(i => i.status === 'dipinjam').length;
+        const rusakCount = item.jumlah_rusak ?? instances.filter(i => i.status === 'rusak' || i.status === 'perbaikan' || i.status === 'nonaktif').length;
 
         tableRows.push([
           index + 1,
-          item.nama_perangkat || item.namaPerangkat,
+          item.nama_perangkat || item.namaPerangkat || '-',
           item.jumlah_stok || item.jumlahStok || 0,
           baikCount > 0 ? baikCount : "0",
           dipinjamCount > 0 ? dipinjamCount : "0",
@@ -154,8 +172,9 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
 
       doc.save(`Inventaris_${laborName.replace(/\s+/g, '_')}.pdf`);
       onClose();
-    } catch (err: any) {
-      alert(`Gagal membuat PDF: ${err.message}`);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      alert(`Gagal membuat PDF: ${errorMessage}`);
     } finally {
       setIsGenerating(false);
     }
@@ -193,7 +212,7 @@ export default function ExportPdfModal({ isOpen, onClose, laborList, displayItem
           <div className="space-y-1">
             <label className="text-xs font-bold text-outline uppercase tracking-wider">Pilih Laboratorium</label>
             <select 
-              value={selectedLaborId}
+              value={selectedLaborId || defaultLaborId}
               onChange={(e) => setSelectedLaborId(Number(e.target.value))}
               className="w-full px-3 py-2 border border-surface-container-high rounded-lg text-sm font-semibold"
             >

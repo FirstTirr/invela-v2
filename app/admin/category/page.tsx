@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Trash2, Edit, Loader2, Save, X } from 'lucide-react';
 import { apiKategori, Kategori } from '@/lib/api';
@@ -16,21 +16,53 @@ export default function ReadCategoryPage() {
   const [actionLoading, setActionLoading] = useState<boolean>(false);
 
   // Ambil daftar kategori dari server
-  const loadCategories = async () => {
+  const loadCategories = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const data = await apiKategori.getAll();
       setCategories(data);
-    } catch (err: any) {
-      setError(err.message || 'Gagal memuat data kategori');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Gagal memuat data kategori');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadCategories();
+    let isMounted = true;
+
+    const initLoad = async () => {
+      try {
+        setError(null);
+        const data = await apiKategori.getAll();
+        if (isMounted) {
+          setCategories(data);
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError('Gagal memuat data kategori');
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initLoad();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Mulai proses edit
@@ -49,8 +81,9 @@ export default function ReadCategoryPage() {
       await apiKategori.update(id, cleanValue);
       setEditingId(null);
       await loadCategories();
-    } catch (err: any) {
-      alert(`Gagal memperbarui: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      alert(`Gagal memperbarui: ${message}`);
     } finally {
       setActionLoading(false);
     }
@@ -64,8 +97,9 @@ export default function ReadCategoryPage() {
       setActionLoading(true);
       await apiKategori.delete(id);
       await loadCategories();
-    } catch (err: any) {
-      alert(`Gagal menghapus: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      alert(`Gagal menghapus: ${message}`);
     } finally {
       setActionLoading(false);
     }

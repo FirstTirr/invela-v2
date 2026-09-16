@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -22,100 +22,56 @@ interface MenuItem {
   subItems?: SubMenuItem[];
 }
 
-export default function KabengLayout({ children }: { children: React.ReactNode }) {
-  const pathname = usePathname();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
+interface SidebarContentProps {
+  isMobile?: boolean;
+  pathname: string;
+  userData: { name: string; role: string; initials: string };
+  openLoansDropdown: boolean;
+  openDamagesDropdown: boolean;
+  setIsSidebarOpen: (open: boolean) => void;
+  setIsMobileOpen: (open: boolean) => void;
+  setOpenLoansDropdown: React.Dispatch<React.SetStateAction<boolean>>;
+  setOpenDamagesDropdown: React.Dispatch<React.SetStateAction<boolean>>;
+  onLogout: (e?: React.MouseEvent<HTMLButtonElement>) => void;
+}
 
-  const [openLoansDropdown, setOpenLoansDropdown] = useState(false);
-  const [openDamagesDropdown, setOpenDamagesDropdown] = useState(false);
+const kabengMenu: MenuItem[] = [
+  { title: 'Dashboard Overview', href: '/kabeng', icon: LayoutDashboard },
+  { title: 'Kelola Barang', href: '/kabeng/items', icon: PackagePlus },
+  { title: 'Penggunaan Labor', href: '/kabeng/penggunaan', icon: MonitorCheck },
+  {
+    title: 'Peminjaman Barang',
+    icon: ClipboardList,
+    subItems: [
+      { title: 'Peminjaman Aktif', href: '/kabeng/loans', icon: ClipboardList },
+      { title: 'Riwayat Peminjaman', href: '/kabeng/loans/completed', icon: History },
+    ]
+  },
+  {
+    title: 'Laporan & Kerusakan',
+    icon: AlertTriangle,
+    subItems: [
+      { title: 'Laporan Kerusakan', href: '/kabeng/damages', icon: AlertTriangle },
+      { title: 'Riwayat Perbaikan', href: '/kabeng/damages/repair-history', icon: History },
+    ]
+  },
+];
 
-  // State User Dinamis
-  const [userData, setUserData] = useState({
-    name: 'Kepala Bengkel',
-    role: 'SMKN 4 Payakumbuh',
-    initials: 'KB'
-  });
-
-  useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        const user = JSON.parse(storedUser);
-        const name = user.nama_lengkap || user.username || user.nama || 'Kepala Bengkel';
-        const jurusan = user.jurusan || user.nama_jurusan || 'SMKN 4 Payakumbuh';
-        const initials = name.slice(0, 2).toUpperCase();
-
-        setUserData({ name, role: jurusan, initials });
-      } else {
-        const username = localStorage.getItem('username');
-        if (username) {
-          setUserData({
-            name: username,
-            role: 'SMKN 4 Payakumbuh',
-            initials: username.slice(0, 2).toUpperCase()
-          });
-        }
-      }
-    } catch (e) {
-      console.error("Gagal membaca data user:", e);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (pathname.startsWith('/kabeng/loans')) {
-      setOpenLoansDropdown(true);
-    }
-    if (pathname.startsWith('/kabeng/damages')) {
-      setOpenDamagesDropdown(true);
-    }
-  }, [pathname]);
-
-  const handleLogout = (e?: React.MouseEvent) => {
-    if (e) e.preventDefault();
-    if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
-
-    localStorage.clear();
-    sessionStorage.clear();
-
-    const cookies = document.cookie.split(";");
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i];
-      const eqPos = cookie.indexOf("=");
-      const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
-    }
-
-    window.location.href = '/login';
-  };
-
-  const kabengMenu: MenuItem[] = [
-    { title: 'Dashboard Overview', href: '/kabeng', icon: LayoutDashboard },
-    { title: 'Kelola Barang', href: '/kabeng/items', icon: PackagePlus },
-    { title: 'Penggunaan Labor', href: '/kabeng/penggunaan', icon: MonitorCheck },
-    {
-      title: 'Peminjaman Barang',
-      icon: ClipboardList,
-      subItems: [
-        { title: 'Peminjaman Aktif', href: '/kabeng/loans', icon: ClipboardList },
-        { title: 'Riwayat Peminjaman', href: '/kabeng/loans/completed', icon: History },
-      ]
-    },
-    {
-      title: 'Laporan & Kerusakan',
-      icon: AlertTriangle,
-      subItems: [
-        { title: 'Laporan Kerusakan', href: '/kabeng/damages', icon: AlertTriangle },
-        { title: 'Riwayat Perbaikan', href: '/kabeng/damages/repair-history', icon: History },
-      ]
-    },
-  ];
-
-  const SidebarContent = ({ isMobile = false }: { isMobile?: boolean }) => (
+function SidebarContent({
+  isMobile = false,
+  pathname,
+  userData,
+  openLoansDropdown,
+  openDamagesDropdown,
+  setIsSidebarOpen,
+  setIsMobileOpen,
+  setOpenLoansDropdown,
+  setOpenDamagesDropdown,
+  onLogout
+}: SidebarContentProps) {
+  return (
     <div className="flex flex-col h-full justify-between p-5 font-sans bg-white">
       <div className="space-y-7">
-        {/* Header Sidebar */}
         <div className="flex items-center justify-between px-2">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-primary to-primary-container flex items-center justify-center text-white font-black text-lg shadow-sm shrink-0">
@@ -129,7 +85,6 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
             </div>
           </div>
 
-          {/* Tombol Tutup Sidebar Desktop */}
           {!isMobile && (
             <button
               type="button"
@@ -142,7 +97,6 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
           )}
         </div>
 
-        {/* Menu Navigasi */}
         <nav className="space-y-1.5">
           <p className="px-3 mb-3 text-xs font-bold tracking-wider text-outline uppercase">
             Bengkel Operations
@@ -225,7 +179,6 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
         </nav>
       </div>
 
-      {/* User Profile Footer */}
       <div className="border-t border-surface-container pt-4 flex items-center justify-between bg-white">
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-black text-sm shrink-0">
@@ -237,7 +190,8 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
           </div>
         </div>
         <button 
-          onClick={handleLogout} 
+          type="button"
+          onClick={onLogout} 
           title="Keluar dari Akun"
           className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0"
         >
@@ -246,24 +200,86 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
       </div>
     </div>
   );
+}
+
+export default function KabengLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  const [openLoansDropdown, setOpenLoansDropdown] = useState(() => pathname.startsWith('/kabeng/loans'));
+  const [openDamagesDropdown, setOpenDamagesDropdown] = useState(() => pathname.startsWith('/kabeng/damages'));
+
+  const [userData] = useState(() => {
+    if (typeof window === 'undefined') {
+      return { name: 'Kepala Bengkel', role: 'SMKN 4 Payakumbuh', initials: 'KB' };
+    }
+    try {
+      const storedUser = localStorage.getItem('user');
+      if (storedUser) {
+        const user = JSON.parse(storedUser) as { nama_lengkap?: string; username?: string; nama?: string; jurusan?: string; nama_jurusan?: string };
+        const name = user.nama_lengkap || user.username || user.nama || 'Kepala Bengkel';
+        const jurusan = user.jurusan || user.nama_jurusan || 'SMKN 4 Payakumbuh';
+        const initials = name.slice(0, 2).toUpperCase();
+        return { name, role: jurusan, initials };
+      }
+      const username = localStorage.getItem('username');
+      if (username) {
+        return {
+          name: username,
+          role: 'SMKN 4 Payakumbuh',
+          initials: username.slice(0, 2).toUpperCase()
+        };
+      }
+    } catch (e: unknown) {
+      console.error("Gagal membaca data user:", e);
+    }
+    return { name: 'Kepala Bengkel', role: 'SMKN 4 Payakumbuh', initials: 'KB' };
+  });
+
+  const handleLogout = (e?: React.MouseEvent<HTMLButtonElement>) => {
+    if (e) e.preventDefault();
+    if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
+
+    localStorage.clear();
+    sessionStorage.clear();
+
+    const cookies = document.cookie.split(";");
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i];
+      const eqPos = cookie.indexOf("=");
+      const name = eqPos > -1 ? cookie.slice(0, eqPos).trim() : cookie.trim();
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+    }
+
+    window.location.href = '/login';
+  };
 
   return (
     <div className="min-h-screen bg-background text-on-surface antialiased flex selection:bg-secondary-container">
-      
-      {/* Sidebar Desktop Collapsible */}
       <aside 
         className={`hidden lg:block bg-white border-r border-surface-container-high shrink-0 h-screen sticky top-0 z-20 transition-all duration-300 ease-in-out ${
           isSidebarOpen ? 'w-72 opacity-100' : 'w-0 opacity-0 overflow-hidden border-none'
         }`}
       >
         <div className="w-72 h-full">
-          <SidebarContent isMobile={false} />
+          <SidebarContent 
+            isMobile={false}
+            pathname={pathname}
+            userData={userData}
+            openLoansDropdown={openLoansDropdown}
+            openDamagesDropdown={openDamagesDropdown}
+            setIsSidebarOpen={setIsSidebarOpen}
+            setIsMobileOpen={setIsMobileOpen}
+            setOpenLoansDropdown={setOpenLoansDropdown}
+            setOpenDamagesDropdown={setOpenDamagesDropdown}
+            onLogout={handleLogout}
+          />
         </div>
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0 min-h-screen relative">
-        
-        {/* Tombol Buka Sidebar Desktop Saat Tertutup */}
         {!isSidebarOpen && (
           <button
             type="button"
@@ -275,7 +291,6 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
           </button>
         )}
 
-        {/* Header Mobile */}
         <header className="lg:hidden w-full bg-white border-b border-surface-container px-5 py-4 flex justify-between items-center sticky top-0 z-40 shadow-sm">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-black text-sm">
@@ -294,7 +309,6 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
           </button>
         </header>
 
-        {/* Modal Drawer Mobile */}
         {isMobileOpen && (
           <div className="fixed inset-0 z-50 lg:hidden flex">
             <div 
@@ -312,13 +326,23 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto pt-4">
-                <SidebarContent isMobile={true} />
+                <SidebarContent 
+                  isMobile={true}
+                  pathname={pathname}
+                  userData={userData}
+                  openLoansDropdown={openLoansDropdown}
+                  openDamagesDropdown={openDamagesDropdown}
+                  setIsSidebarOpen={setIsSidebarOpen}
+                  setIsMobileOpen={setIsMobileOpen}
+                  setOpenLoansDropdown={setOpenLoansDropdown}
+                  setOpenDamagesDropdown={setOpenDamagesDropdown}
+                  onLogout={handleLogout}
+                />
               </div>
             </div>
           </div>
         )}
 
-        {/* Main Content Area */}
         <main className="flex-1 p-5 sm:p-8 md:p-10 max-w-7xl w-full mx-auto">
           {children}
         </main>

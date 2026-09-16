@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Trash2, Edit, Loader2, RefreshCw, X, Save } from 'lucide-react';
 import { apiJurusan, Jurusan } from '@/lib/api/jurusan';
 import { motion, AnimatePresence } from 'framer-motion';
+
+type ExtendedJurusan = Jurusan & { jurusan?: string };
 
 export default function ReadJurusanPage() {
   const [jurusanList, setJurusanList] = useState<Jurusan[]>([]);
@@ -17,21 +19,53 @@ export default function ReadJurusanPage() {
   const [editValue, setEditValue] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const fetchJurusan = async () => {
+  const fetchJurusan = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
       const data = await apiJurusan.getAll();
       setJurusanList(data);
-    } catch (err: any) {
-      setError(err.message || 'Gagal memuat data jurusan');
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Gagal memuat data jurusan');
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchJurusan();
+    let isMounted = true;
+
+    const initFetch = async () => {
+      try {
+        setError(null);
+        const data = await apiJurusan.getAll();
+        if (isMounted) {
+          setJurusanList(data);
+        }
+      } catch (err: unknown) {
+        if (isMounted) {
+          if (err instanceof Error) {
+            setError(err.message);
+          } else {
+            setError('Gagal memuat data jurusan');
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    initFetch();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleDelete = async (id: number, nama: string) => {
@@ -39,14 +73,16 @@ export default function ReadJurusanPage() {
     try {
       await apiJurusan.delete(id);
       setJurusanList((prev) => prev.filter((item) => item.id !== id));
-    } catch (err: any) {
-      alert(`Gagal menghapus: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      alert(`Gagal menghapus: ${message}`);
     }
   };
 
   const handleOpenEdit = (jurusan: Jurusan) => {
+    const extJurusan = jurusan as ExtendedJurusan;
     setSelectedJurusan(jurusan);
-    setEditValue(jurusan.nama_jurusan || (jurusan as any).jurusan || '');
+    setEditValue(jurusan.nama_jurusan || extJurusan.jurusan || '');
     setIsOpenEditModal(true);
   };
 
@@ -61,8 +97,9 @@ export default function ReadJurusanPage() {
         prev.map((item) => (item.id === selectedJurusan.id ? updated : item))
       );
       setIsOpenEditModal(false);
-    } catch (err: any) {
-      alert(`Gagal memperbarui: ${err.message}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      alert(`Gagal memperbarui: ${message}`);
     } finally {
       setIsUpdating(false);
     }
@@ -112,7 +149,8 @@ export default function ReadJurusanPage() {
                   </tr>
                 ) : (
                   jurusanList.map((j) => {
-                    const displayName = j.nama_jurusan || (j as any).jurusan || '';
+                    const extJ = j as ExtendedJurusan;
+                    const displayName = j.nama_jurusan || extJ.jurusan || '';
                     return (
                       <tr key={j.id} className="hover:bg-surface-low/30 transition-colors">
                         <td className="p-5 text-base font-extrabold text-on-surface whitespace-nowrap">

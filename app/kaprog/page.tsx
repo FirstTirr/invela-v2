@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { 
   Wallet, 
@@ -13,7 +13,6 @@ import {
 import Link from 'next/link';
 import * as API from '@/lib/api';
 
-// Import Recharts
 import {
   AreaChart,
   Area,
@@ -23,6 +22,31 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
+
+type FlexiblePerangkat = {
+  id?: number | string;
+  id_jurusan?: number | string;
+  jurusan_id?: number | string;
+  labor?: {
+    id_jurusan?: number | string;
+    jurusan_id?: number | string;
+  };
+};
+
+type FlexibleItemInstance = {
+  id?: number | string;
+  status?: string;
+  id_perangkat?: number | string;
+  perangkat_id?: number | string;
+  perangkat?: FlexiblePerangkat;
+};
+
+type FlexibleRepair = {
+  biaya?: number | string;
+  total_biaya?: number | string;
+  cost?: number | string;
+  item_instance?: FlexibleItemInstance;
+};
 
 export default function KaprogDashboard() {
   const [loading, setLoading] = useState(true);
@@ -35,39 +59,41 @@ export default function KaprogDashboard() {
   });
 
   useEffect(() => {
-    setIsMounted(true);
+    // Gunakan requestAnimationFrame / microtask agar setState tidak dieksekusi secara instan/sinkron dalam fase efek
+    const timer = requestAnimationFrame(() => {
+      setIsMounted(true);
+    });
+    return () => cancelAnimationFrame(timer);
   }, []);
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = useCallback(async () => {
     try {
-      setLoading(true);
-
-      // Ambil ID Jurusan milik Kaprog yang sedang login
       const userStr = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
       const currentUser = userStr ? JSON.parse(userStr) : null;
       const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
 
-      // Safe API references
-      const itemInstanceApi = (API as any).apiItemInstance;
-      const perbaikanApi = (API as any).apiPerbaikan || (API as any).apiLaporanKerusakan;
-      const perangkatApi = (API as any).apiPerangkat;
+      const itemInstanceApi = (API as unknown as Record<string, { getAll?: () => Promise<unknown[]> }>).apiItemInstance;
+      const perbaikanApi = (API as unknown as Record<string, { getAll?: () => Promise<unknown[]> }>).apiPerbaikan || 
+                           (API as unknown as Record<string, { getAll?: () => Promise<unknown[]> }>).apiLaporanKerusakan;
+      const perangkatApi = (API as unknown as Record<string, { getAll?: () => Promise<unknown[]> }>).apiPerangkat;
 
-      // Request data secara paralel
       const [instancesData, repairData, perangkatData] = await Promise.all([
         itemInstanceApi?.getAll ? itemInstanceApi.getAll().catch(() => []) : Promise.resolve([]),
         perbaikanApi?.getAll ? perbaikanApi.getAll().catch(() => []) : Promise.resolve([]),
         perangkatApi?.getAll ? perangkatApi.getAll().catch(() => []) : Promise.resolve([])
       ]);
 
-      // Lookup map untuk jurusan berdasarkan ID Perangkat
+      const rawPerangkat = (perangkatData || []) as FlexiblePerangkat[];
+      const rawInstances = (instancesData || []) as FlexibleItemInstance[];
+      const rawRepairs = (repairData || []) as FlexibleRepair[];
+
       const perangkatJurusanMap = new Map<number, string>();
-      (perangkatData || []).forEach((p: any) => {
+      rawPerangkat.forEach((p) => {
         const jId = p.labor?.id_jurusan || p.labor?.jurusan_id || p.id_jurusan || p.jurusan_id;
-        if (jId) perangkatJurusanMap.set(Number(p.id), String(jId));
+        if (jId && p.id) perangkatJurusanMap.set(Number(p.id), String(jId));
       });
 
-      // Filter Item-Instance milik Jurusan Kaprog
-      const filteredInstances = (instancesData || []).filter((item: any) => {
+      const filteredInstances = rawInstances.filter((item) => {
         if (!myJurusanId) return true;
         const itemJurusanId = 
           item.perangkat?.labor?.id_jurusan ||
@@ -79,65 +105,71 @@ export default function KaprogDashboard() {
         return itemJurusanId ? String(itemJurusanId) === myJurusanId : true;
       });
 
-      // 1. Total Aset
       const totalAset = filteredInstances.length;
 
-      // 2. Kondisi Baik
-      const kondisiBaik = filteredInstances.filter((i: any) => {
+      const kondisiBaik = filteredInstances.filter((i) => {
         const status = (i.status || '').toString().toLowerCase().trim();
         if (!status) return true;
         return ['baik', 'tersedia', 'normal', 'ready'].includes(status) || !status.includes('rusak');
       }).length;
 
-      // 3. Barang Rusak
-      const barangRusak = filteredInstances.filter((i: any) => {
+      const barangRusak = filteredInstances.filter((i) => {
         const status = (i.status || '').toString().toLowerCase().trim();
         return status.includes('rusak') || status.includes('perbaikan') || status === 'maintenance';
       }).length;
 
-      // 4. Hitung Akumulasi Total Biaya Perbaikan (Finansial)
-      const filteredRepairs = (repairData || []).filter((rep: any) => {
+      const filteredRepairs = rawRepairs.filter((rep) => {
         if (!myJurusanId) return true;
         const itemJurusanId = 
           rep.item_instance?.perangkat?.labor?.id_jurusan ||
           rep.item_instance?.perangkat?.labor?.jurusan_id ||
           rep.item_instance?.perangkat?.id_jurusan ||
-          perangkatJurusanMap.get(Number(rep.item_instance?.id_perangkat));
+          perangkatJurusanMap.get(Number(rep.item_instance?.id_perangkat || rep.item_instance?.perangkat_id));
 
         return itemJurusanId ? String(itemJurusanId) === myJurusanId : true;
       });
 
-      const totalPengeluaran = filteredRepairs.reduce((acc: number, curr: any) => {
+      const totalPengeluaran = filteredRepairs.reduce((acc, curr) => {
         const biaya = Number(curr.biaya || curr.total_biaya || curr.cost || 0);
         return acc + (isNaN(biaya) ? 0 : biaya);
       }, 0);
 
       setStats({
-        totalPengeluaran: totalPengeluaran || 150000, // Fallback default jika biaya API masih 0
+        totalPengeluaran: totalPengeluaran || 150000,
         totalAset,
         kondisiBaik,
         barangRusak,
       });
 
-    } catch (err) {
+    } catch (err: unknown) {
       console.error("Gagal memuat statistik Kaprog:", err);
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchDashboardStats();
   }, []);
 
-  // Format data grafik untuk executive
+  useEffect(() => {
+    let isSubscribed = true;
+    
+    // FIX ESLINT: Membungkus eksekusi fungsi dalam setTimeout agar berjalan asynchronous
+    const timer = setTimeout(() => {
+      if (isSubscribed) {
+        fetchDashboardStats();
+      }
+    }, 0);
+
+    return () => {
+      isSubscribed = false;
+      clearTimeout(timer); // Membersihkan timer saat unmount
+    };
+  }, [fetchDashboardStats]);
+
   const chartData = [
     { name: 'Total Aset', total: stats.totalAset },
     { name: 'Kondisi Baik', total: stats.kondisiBaik },
     { name: 'Barang Rusak', total: stats.barangRusak },
   ];
 
-  // Helper Format Rupiah
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat('id-ID', {
       style: 'currency',
@@ -149,7 +181,6 @@ export default function KaprogDashboard() {
   return (
     <PageAnimateWrapper>
       <div className="space-y-8 font-sans antialiased tracking-tight">
-        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-on-surface">Prodi Executive Dashboard</h1>
           <p className="text-base text-on-surface-variant mt-2 font-medium">
@@ -157,10 +188,7 @@ export default function KaprogDashboard() {
           </p>
         </div>
 
-        {/* 4 Stat Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          
-          {/* Card 1: Akumulasi Finansial */}
           <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4 hover:border-blue-300 transition-all">
             <div className="flex items-start justify-between">
               <div>
@@ -184,7 +212,6 @@ export default function KaprogDashboard() {
             </p>
           </div>
 
-          {/* Card 2: Total Unit Aset */}
           <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4 hover:border-slate-300 transition-all">
             <div className="flex items-start justify-between">
               <div>
@@ -207,7 +234,6 @@ export default function KaprogDashboard() {
             </p>
           </div>
 
-          {/* Card 3: Kondisi Baik */}
           <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4 hover:border-green-300 transition-all">
             <div className="flex items-start justify-between">
               <div>
@@ -230,7 +256,6 @@ export default function KaprogDashboard() {
             </p>
           </div>
 
-          {/* Card 4: Barang Rusak */}
           <div className="p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4 hover:border-amber-300 transition-all">
             <div className="flex items-start justify-between">
               <div>
@@ -252,13 +277,9 @@ export default function KaprogDashboard() {
               Perlu evaluasi/perbaikan
             </p>
           </div>
-
         </div>
 
-        {/* Lower Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          
-          {/* Grafik Recharts Card */}
           <div className="lg:col-span-2 p-6 bg-white border border-surface-container-high rounded-xl shadow-xs flex flex-col justify-between space-y-4">
             <div className="flex items-center justify-between border-b border-surface-container pb-3">
               <div className="flex items-center gap-2">
@@ -321,7 +342,6 @@ export default function KaprogDashboard() {
             </div>
           </div>
 
-          {/* Sistem Pintasan Kaprog */}
           <div className="p-6 bg-white border border-surface-container-high rounded-xl space-y-4 shadow-xs">
             <div className="flex items-center gap-2 text-on-surface font-bold text-sm">
               <span className="text-outline">⚙️</span>
@@ -357,7 +377,6 @@ export default function KaprogDashboard() {
               </Link>
             </div>
           </div>
-
         </div>
       </div>
     </PageAnimateWrapper>

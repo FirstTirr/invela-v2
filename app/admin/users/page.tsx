@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
 import { Plus, Trash2, X, User, Key, Shield, Network, Eye, EyeOff, Loader2, RefreshCw } from 'lucide-react';
 import { apiJurusan, Jurusan, apiUsers, UserResponse } from '@/lib/api';
@@ -14,12 +14,9 @@ export default function UsersCRUDPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // State Jurusan dari backend
   const [jurusanList, setJurusanList] = useState<Jurusan[]>([]);
   const [loadingJurusan, setLoadingJurusan] = useState<boolean>(false);
 
-  // Opsi Role yang dipetakan ke uint ID
-  // ID Role Backend: 1 = Kabeng, 2 = Guru, 3 = Kaprog, 4 = Sapras
   const roleOptions = [
     { id: 1, label: 'Kepala Bengkel (Kabeng)' },
     { id: 2, label: 'Guru' },
@@ -27,123 +24,123 @@ export default function UsersCRUDPage() {
     { id: 4, label: 'Sarana Prasarana (Sapras)' },
   ];
 
-  // Form State
   const [formData, setFormData] = useState({
     username: '',
     password: '',
-    role_id: 1, // Default Role ID (1: Kabeng)
+    role_id: 1,
     jurusan_id: null as number | null,
   });
 
-  // Pengecekan apakah role mengakses semua jurusan (Guru = 2, Sapras = 4)
-  const isGlobalRole = (roleId: number) => roleId === 2 || roleId === 4;
+  const isGlobalRole = useCallback((roleId: number) => roleId === 2 || roleId === 4, []);
 
-  // Filter daftar jurusan khusus untuk Kabeng/Kaprog (Membuang record "SEMUA JURUSAN")
-  const filteredJurusanList = jurusanList.filter(
-    (j) => !j.nama_jurusan.toLowerCase().includes('semua')
-  );
+  const filteredJurusanList = useMemo(() => {
+    return jurusanList.filter(
+      (j) => !j.nama_jurusan.toLowerCase().includes('semua')
+    );
+  }, [jurusanList]);
 
-  // Fetch daftar user dari Backend Go
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
       setErrorUsers(null);
       const data = await apiUsers.getAll();
       setUsers(data);
-    } catch (err: any) {
-      setErrorUsers(err.message || 'Gagal memuat data akun');
-    } finally {
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Gagal memuat data akun';
+      setErrorUsers(errorMsg);
+    } fontFinally: {
       setLoadingUsers(false);
     }
-  };
-
-  useEffect(() => {
-    fetchUsers();
   }, []);
 
-  // Fetch data Jurusan saat modal pendaftaran dibuka
-  useEffect(() => {
-    const fetchJurusanData = async () => {
-      try {
-        setLoadingJurusan(true);
-        const data = await apiJurusan.getAll();
-        setJurusanList(data);
-
-        // Ambil jurusan spesifik pertama (bukan "Semua Jurusan") untuk default value Kabeng/Kaprog
-        const validJurusanList = data.filter(
-          (j) => !j.nama_jurusan.toLowerCase().includes('semua')
-        );
-
-        if (validJurusanList.length > 0 && formData.jurusan_id === null && !isGlobalRole(formData.role_id)) {
-          setFormData((prev) => ({ ...prev, jurusan_id: validJurusanList[0].id }));
-        }
-      } catch (err) {
-        console.error('Gagal mengambil data jurusan:', err);
-      } finally {
-        setLoadingJurusan(false);
-      }
-    };
-
-    if (isOpenModal) {
-      fetchJurusanData();
+  // Helper terpisah tanpa update state langsung di effect
+  const fetchJurusanData = useCallback(async () => {
+    try {
+      setLoadingJurusan(true);
+      const data = await apiJurusan.getAll();
+      setJurusanList(data);
+    } catch (err) {
+      console.error('Gagal mengambil data jurusan:', err);
+    } finally {
+      setLoadingJurusan(false);
     }
-  }, [isOpenModal]);
+  }, []);
 
-  // Handler Sanitasi Password (Hanya Alfanumerik A-Z, a-z, 0-9)
+  useEffect(() => {
+    let isMounted = true;
+
+    // Gunakan queueMicrotask untuk menghindari eksekusi setState sinkron di body effect
+    queueMicrotask(() => {
+      if (isMounted) {
+        void fetchUsers();
+        void fetchJurusanData();
+      }
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [fetchUsers, fetchJurusanData]);
+
+  const handleOpenModal = () => {
+    const initialRoleId = 1;
+    const defaultJurusanId = !isGlobalRole(initialRoleId) && filteredJurusanList.length > 0
+      ? filteredJurusanList[0].id
+      : null;
+
+    setFormData({
+      username: '',
+      password: '',
+      role_id: initialRoleId,
+      jurusan_id: defaultJurusanId,
+    });
+    setIsOpenModal(true);
+  };
+
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const cleanValue = e.target.value.replace(/[^a-zA-Z0-9]/g, '');
     setFormData((prev) => ({ ...prev, password: cleanValue }));
   };
 
-  // Handler Hapus User
   const handleDelete = async (id: number, username: string) => {
     if (!confirm(`Yakin ingin menghapus akun [${username}]?`)) return;
 
     try {
       await apiUsers.delete(id);
       setUsers((prev) => prev.filter((u) => u.id !== id));
-    } catch (err: any) {
-      alert(`Gagal menghapus pengguna: ${err.message}`);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Terjadi kesalahan';
+      alert(`Gagal menghapus pengguna: ${errorMsg}`);
     }
   };
 
-  // Handler Ganti Role
   const handleRoleChange = (selectedRoleId: number) => {
     const isGlobal = isGlobalRole(selectedRoleId);
     setFormData((prev) => ({
       ...prev,
       role_id: selectedRoleId,
-      // Jika Guru / Sapras -> jurusan_id paksa null
-      // Jika Kabeng / Kaprog -> ambil nilai spesifik pertama (bukan Semua Jurusan)
       jurusan_id: isGlobal ? null : (prev.jurusan_id || filteredJurusanList[0]?.id || null)
     }));
   };
 
-  // Submit Handler -> Kirim data ke API Go
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     try {
       setIsSubmitting(true);
-
       const isGlobal = isGlobalRole(Number(formData.role_id));
 
       const payload = {
         username: formData.username.trim(),
         password_hash: formData.password,
         role_id: Number(formData.role_id),
-        // Guru (2) dan Sapras (4) selalu NULL, Kabeng (1) dan Kaprog (3) kirim ID jurusan spesifik
         jurusan_id: isGlobal ? null : (formData.jurusan_id ? Number(formData.jurusan_id) : null),
       };
 
       await apiUsers.create(payload);
-
-      // Refresh list agar relasi ter-load sempurna dari backend
       await fetchUsers();
 
       setIsOpenModal(false);
-
-      // Reset form state
       setFormData({
         username: '',
         password: '',
@@ -152,8 +149,9 @@ export default function UsersCRUDPage() {
       });
       setShowPassword(false);
       alert('Akun pengguna berhasil didaftarkan!');
-    } catch (err: any) {
-      alert(`Gagal menyimpan akun: ${err.message}`);
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : 'Terjadi kesalahan saat menyimpan';
+      alert(`Gagal menyimpan akun: ${errorMsg}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -179,7 +177,7 @@ export default function UsersCRUDPage() {
               <RefreshCw className={`w-5 h-5 ${loadingUsers ? 'animate-spin' : ''}`} />
             </button>
             <button
-              onClick={() => setIsOpenModal(true)}
+              onClick={handleOpenModal}
               className="px-5 py-3 text-base font-bold text-white bg-primary hover:bg-primary-container rounded-xl flex items-center gap-2 transition-all active:scale-[0.98] shadow-sm cursor-pointer"
             >
               <Plus className="w-5 h-5" /> Tambah Akun Baru
@@ -221,10 +219,14 @@ export default function UsersCRUDPage() {
                   </tr>
                 ) : (
                   users.map((user) => {
-                    const rawJurusan = user.jurusan as any;
-                    const namaJurusanDisplay = typeof rawJurusan === 'string' 
-                      ? rawJurusan 
-                      : rawJurusan?.nama_jurusan || 'SEMUA JURUSAN';
+                    const rawJurusan = user.jurusan as unknown;
+                    let namaJurusanDisplay = 'SEMUA JURUSAN';
+
+                    if (typeof rawJurusan === 'string') {
+                      namaJurusanDisplay = rawJurusan;
+                    } else if (rawJurusan && typeof rawJurusan === 'object' && 'nama_jurusan' in rawJurusan) {
+                      namaJurusanDisplay = String((rawJurusan as { nama_jurusan?: string }).nama_jurusan || 'SEMUA JURUSAN');
+                    }
 
                     return (
                       <tr key={user.id} className="hover:bg-surface-low/30 transition-colors">
@@ -259,23 +261,17 @@ export default function UsersCRUDPage() {
         {isOpenModal && (
           <div className="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white w-full max-w-xl border border-surface-container-high rounded-xl shadow-2xl p-6 space-y-6 animate-in fade-in zoom-in-95 duration-150">
-              {/* Modal Header */}
               <div className="flex justify-between items-center border-b border-surface-container pb-3">
                 <h3 className="text-xl font-bold text-on-surface">Registrasi Akun Otoritas</h3>
                 <button
-                  onClick={() => {
-                    setIsOpenModal(false);
-                    setShowPassword(false);
-                  }}
+                  onClick={() => { setIsOpenModal(false); setShowPassword(false); }}
                   className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Form Content */}
               <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Username */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
                     <User className="w-3.5 h-3.5" /> Username (Wajib Smkn4pyk.com)
@@ -292,15 +288,10 @@ export default function UsersCRUDPage() {
                   />
                 </div>
 
-                {/* Password Alfanumerik */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center justify-between">
-                    <span className="flex items-center gap-1.5">
-                      <Key className="w-3.5 h-3.5" /> Password
-                    </span>
-                    <span className="text-[10px] text-outline tracking-normal font-medium lowercase">
-                      (Hanya kombinasi huruf dan angka, tanpa spasi)
-                    </span>
+                    <span className="flex items-center gap-1.5"><Key className="w-3.5 h-3.5" /> Password</span>
+                    <span className="text-[10px] text-outline tracking-normal font-medium lowercase">(Hanya kombinasi huruf dan angka, tanpa spasi)</span>
                   </label>
                   <div className="relative group">
                     <input
@@ -323,7 +314,6 @@ export default function UsersCRUDPage() {
                   </div>
                 </div>
 
-                {/* Role Akses */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
                     <Shield className="w-3.5 h-3.5" /> Pilih Role Akses
@@ -335,20 +325,15 @@ export default function UsersCRUDPage() {
                       className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-bold shadow-sm appearance-none cursor-pointer"
                     >
                       {roleOptions.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.label}
-                        </option>
+                        <option key={r.id} value={r.id}>{r.label}</option>
                       ))}
                     </select>
                     <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-outline">
-                      <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                        <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                      </svg>
+                      <svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
                     </div>
                   </div>
                 </div>
 
-                {/* Afiliasi Jurusan */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
                     <Network className="w-4 h-4" /> Afiliasi Jurusan Kelolaan
@@ -364,9 +349,7 @@ export default function UsersCRUDPage() {
                         <option value="">Semua Jurusan (Akses Global)</option>
                       ) : (
                         filteredJurusanList.map((j) => (
-                          <option key={j.id} value={j.id}>
-                            {j.nama_jurusan}
-                          </option>
+                          <option key={j.id} value={j.id}>{j.nama_jurusan}</option>
                         ))
                       )}
                     </select>
@@ -374,23 +357,17 @@ export default function UsersCRUDPage() {
                       {loadingJurusan ? (
                         <span className="text-xs text-outline animate-pulse">Loading...</span>
                       ) : (
-                        <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                          <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
-                        </svg>
+                        <svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
                       )}
                     </div>
                   </div>
                 </div>
 
-                {/* Footer Modal */}
                 <div className="flex justify-end gap-3 pt-4 border-t border-surface-container">
                   <button
                     type="button"
                     disabled={isSubmitting}
-                    onClick={() => {
-                      setIsOpenModal(false);
-                      setShowPassword(false);
-                    }}
+                    onClick={() => { setIsOpenModal(false); setShowPassword(false); }}
                     className="px-5 py-2.5 text-base font-bold text-on-surface-variant hover:bg-surface-low rounded-xl transition-colors cursor-pointer disabled:opacity-50"
                   >
                     Batal

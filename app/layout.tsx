@@ -18,18 +18,20 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "Invela Control | Inventaris Laboratorium",
+    default: "Invela Control | Sistem Inventaris Laboratorium",
     template: "%s | Invela Control",
   },
   description:
-    "Sistem manajemen inventaris laboratorium untuk pemakaian, peminjaman, laporan kerusakan, dan pemeliharaan aset sekolah.",
+    "Invela Control adalah sistem inventaris laboratorium sekolah untuk manajemen aset, pemakaian, peminjaman, pelaporan kerusakan, dan riwayat perbaikan secara terpusat.",
   keywords: [
-    "inventaris laboratorium",
+    "inventaris laboratorium sekolah",
     "manajemen aset sekolah",
-    "peminjaman laboratorium",
-    "laporan kerusakan",
-    "pemeliharaan aset",
     "sistem inventaris sekolah",
+    "peminjaman barang laboratorium",
+    "laporan kerusakan aset",
+    "riwayat perbaikan barang",
+    "monitoring laboratorium",
+    "manajemen aset pendidikan",
   ],
   authors: [{ name: "Invela Control" }],
   creator: "Invela Control",
@@ -38,20 +40,49 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "/",
   },
+  icons: {
+    icon: [
+      { url: "/logoRounded.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/logoRounded.png", type: "image/png" },
+    ],
+  },
+  category: "education",
+  classification: "Education Technology",
+  referrer: "origin-when-cross-origin",
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
   openGraph: {
     type: "website",
     locale: "id_ID",
     url: "/",
     siteName: "Invela Control",
-    title: "Invela Control | Inventaris Laboratorium",
+    title: "Invela Control | Sistem Inventaris Laboratorium",
     description:
-      "Sistem manajemen inventaris laboratorium untuk pemakaian, peminjaman, laporan kerusakan, dan pemeliharaan aset sekolah.",
+      "Sistem inventaris laboratorium sekolah untuk manajemen aset, pemakaian, peminjaman, pelaporan kerusakan, dan riwayat perbaikan secara terpusat.",
+    images: [
+      {
+        url: "/opengraph-image",
+        width: 1200,
+        height: 630,
+        alt: "Invela Control - Sistem Inventaris Laboratorium",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Invela Control | Inventaris Laboratorium",
+    title: "Invela Control | Sistem Inventaris Laboratorium",
     description:
-      "Sistem manajemen inventaris laboratorium untuk pemakaian, peminjaman, laporan kerusakan, dan pemeliharaan aset sekolah.",
+      "Sistem inventaris laboratorium sekolah untuk manajemen aset, pemakaian, peminjaman, pelaporan kerusakan, dan riwayat perbaikan secara terpusat.",
+    images: ["/twitter-image"],
   },
 };
 

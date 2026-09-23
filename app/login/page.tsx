@@ -87,7 +87,7 @@ export default function LoginPage() {
           <div className="flex items-center justify-between z-10">
             <div className="flex items-center gap-2 text-white/90">
               <ShieldCheck className="w-5 h-5 text-white animate-pulse" />
-              <span className="text-xs font-bold tracking-widest uppercase">SMKN 4 Payakumbuh</span>
+              <span className="text-xs font-bold tracking-widest uppercase">TeFa RPL BCS</span>
             </div>
           </div>
 

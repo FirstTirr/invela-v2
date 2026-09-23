@@ -39,21 +39,26 @@ export default function UsersCRUDPage() {
     );
   }, [jurusanList]);
 
+  // Saring akun admin agar tidak masuk ke state users
   const fetchUsers = useCallback(async () => {
     try {
       setLoadingUsers(true);
       setErrorUsers(null);
       const data = await apiUsers.getAll();
-      setUsers(data);
+      const nonAdminUsers = (data || []).filter(
+        (u) =>
+          u.role?.toUpperCase() !== 'ADMIN' &&
+          !u.username.toLowerCase().startsWith('admin')
+      );
+      setUsers(nonAdminUsers);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Gagal memuat data akun';
       setErrorUsers(errorMsg);
-    } fontFinally: {
+    } finally {
       setLoadingUsers(false);
     }
   }, []);
 
-  // Helper terpisah tanpa update state langsung di effect
   const fetchJurusanData = useCallback(async () => {
     try {
       setLoadingJurusan(true);
@@ -69,7 +74,6 @@ export default function UsersCRUDPage() {
   useEffect(() => {
     let isMounted = true;
 
-    // Gunakan queueMicrotask untuk menghindari eksekusi setState sinkron di body effect
     queueMicrotask(() => {
       if (isMounted) {
         void fetchUsers();
@@ -152,7 +156,7 @@ export default function UsersCRUDPage() {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Terjadi kesalahan saat menyimpan';
       alert(`Gagal menyimpan akun: ${errorMsg}`);
-    } finally {
+    } fontFinally: {
       setIsSubmitting(false);
     }
   };

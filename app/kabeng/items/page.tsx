@@ -35,6 +35,15 @@ interface CurrentUser {
   jurusan?: string | null;
 }
 
+// Helper membatasi maksimal 2 baris enter
+const formatPreviewDeskripsi = (text: string) => {
+  if (!text) return { previewText: '', isTruncated: false };
+  const lines = text.split('\n');
+  const isTruncated = lines.length > 2;
+  const previewText = lines.slice(0, 2).join('\n') + (isTruncated ? '...' : '');
+  return { previewText, isTruncated };
+};
+
 export default function KabengItemsPage() {
   const router = useRouter();
   const [displayItems, setDisplayItems] = useState<DisplayPerangkat[]>([]);
@@ -45,6 +54,10 @@ export default function KabengItemsPage() {
 
   const [modalState, setModalState] = useState<{ add: boolean; edit: boolean; pdf: boolean }>({ add: false, edit: false, pdf: false });
   const [editingPerangkatId, setEditingPerangkatId] = useState<number | null>(null);
+  
+  // State Pop-up Modal Deskripsi Full
+  const [selectedDeskripsi, setSelectedDeskripsi] = useState<{ nama: string; deskripsi: string } | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -175,7 +188,10 @@ export default function KabengItemsPage() {
   };
 
   const handleDeletePerangkat = async (item: DisplayPerangkat) => {
-    if (item.jumlah_stok > 0) return alert(`Perangkat [${item.nama_perangkat}] masih memiliki ${item.jumlah_stok} unit instance!\n\nHapus unit terlebih dahulu.`);
+    if (item.jumlah_stok > 0) {
+      return alert(`Harap hapus semua unit sebelum hapus product.`);
+    }
+
     if (!confirm(`Yakin menghapus master perangkat [${item.nama_perangkat}]?`)) return;
     try {
       setIsSubmitting(true);
@@ -277,7 +293,13 @@ export default function KabengItemsPage() {
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left border-collapse text-base min-w-[900px]">
               <thead className="bg-surface-low border-b border-surface-container-high">
-                <tr><th className="p-5 text-sm font-bold uppercase">Nama Perangkat</th><th className="p-5 text-sm font-bold uppercase">Labor</th><th className="p-5 text-sm font-bold uppercase">Kategori</th><th className="p-5 text-sm font-bold uppercase text-center">Jumlah Stok Unit</th><th className="p-5 text-sm font-bold uppercase text-right">Aksi</th></tr>
+                <tr>
+                  <th className="p-5 text-sm font-bold uppercase w-1/2">Nama Perangkat</th>
+                  <th className="p-5 text-sm font-bold uppercase">Labor</th>
+                  <th className="p-5 text-sm font-bold uppercase">Kategori</th>
+                  <th className="p-5 text-sm font-bold uppercase text-center">Jumlah Stok Unit</th>
+                  <th className="p-5 text-sm font-bold uppercase text-right">Aksi</th>
+                </tr>
               </thead>
               <tbody className="text-on-surface font-semibold">
                 {loadingItems ? (
@@ -288,29 +310,75 @@ export default function KabengItemsPage() {
                   <tr><td colSpan={5} className="p-10 text-center text-outline">Data perangkat tidak ditemukan.</td></tr>
                 ) : (
                   <AnimatePresence initial={false}>
-                    {filteredItems.map((item) => (
-                      <motion.tr key={item.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="hover:bg-surface-low/30 border-b border-surface-container">
-                        <td className="p-5 whitespace-nowrap">
-                          <span className="block text-base font-bold text-primary">{item.nama_perangkat}</span>
-                          <span className="block text-xs font-mono text-outline mt-0.5 font-bold">Sample Kode Asset: {item.kode_asset_sample}</span>
-                          {item.deskripsi && <span className="block text-xs text-on-surface-variant italic mt-1 font-medium bg-surface-low px-2 py-0.5 rounded border border-surface-container-high w-fit">Deskripsi: {item.deskripsi}</span>}
-                        </td>
-                        <td className="p-5 whitespace-nowrap"><span className="block text-base font-bold">{getLaborName(item.id_labor)}</span><span className="block text-sm text-outline mt-0.5 uppercase">Jurusan: {getJurusanName(item.id_jurusan)}</span></td>
-                        <td className="p-5 text-base font-bold text-on-surface-variant whitespace-nowrap">{getKategoriName(item.kategori_id)}</td>
-                        <td className="p-5 text-center whitespace-nowrap"><span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-extrabold bg-primary/10 text-primary border border-primary/20">{item.jumlah_stok} Unit</span></td>
-                        <td className="p-5 text-right space-x-2 whitespace-nowrap">
-                          <button onClick={() => router.push(`/kabeng/items/${item.id}`)} className="p-2.5 border border-primary/20 text-primary hover:bg-primary/10 rounded-lg cursor-pointer inline-flex items-center gap-1 font-bold text-xs"><Boxes className="w-4 h-4" /> Kelola Unit</button>
-                          <button type="button" onClick={() => handleEditClick(item)} className="p-2.5 border border-surface-container text-outline hover:text-primary rounded-lg cursor-pointer inline-flex items-center"><Edit2 className="w-4 h-4" /></button>
-                          <button type="button" onClick={() => handleDeletePerangkat(item)} className="p-2.5 border border-surface-container text-outline hover:text-error rounded-lg cursor-pointer inline-flex items-center"><Trash2 className="w-4 h-4" /></button>
-                        </td>
-                      </motion.tr>
-                    ))}
+                    {filteredItems.map((item) => {
+                      const { previewText, isTruncated } = formatPreviewDeskripsi(item.deskripsi);
+
+                      return (
+                        <motion.tr key={item.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="hover:bg-surface-low/30 border-b border-surface-container">
+                          <td className="p-5 max-w-md">
+                            <span className="block text-base font-bold text-primary">{item.nama_perangkat}</span>
+                            <span className="block text-xs font-mono text-outline mt-0.5 font-bold">Sample Kode Asset: {item.kode_asset_sample}</span>
+                            
+                            {item.deskripsi && (
+                              <button
+                                type="button"
+                                onClick={() => setSelectedDeskripsi({ nama: item.nama_perangkat, deskripsi: item.deskripsi })}
+                                className="mt-2 text-left w-full group focus:outline-none cursor-pointer"
+                                title="Klik untuk melihat deskripsi lengkap"
+                              >
+                                <div className="px-3 py-1.5 rounded-lg bg-surface-low border border-surface-container-high hover:border-primary/40 hover:bg-primary/5 transition-all w-full">
+                                  <p className="text-xs text-on-surface-variant font-medium whitespace-pre-line break-words">
+                                    <span className="font-bold text-slate-700">Deskripsi: </span>
+                                    {previewText}
+                                  </p>
+                                </div>
+                              </button>
+                            )}
+                          </td>
+                          <td className="p-5 whitespace-nowrap"><span className="block text-base font-bold">{getLaborName(item.id_labor)}</span><span className="block text-sm text-outline mt-0.5 uppercase">Jurusan: {getJurusanName(item.id_jurusan)}</span></td>
+                          <td className="p-5 text-base font-bold text-on-surface-variant whitespace-nowrap">{getKategoriName(item.kategori_id)}</td>
+                          <td className="p-5 text-center whitespace-nowrap"><span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-extrabold bg-primary/10 text-primary border border-primary/20">{item.jumlah_stok} Unit</span></td>
+                          <td className="p-5 text-right space-x-2 whitespace-nowrap">
+                            <button onClick={() => router.push(`/kabeng/items/${item.id}`)} className="p-2.5 border border-primary/20 text-primary hover:bg-primary/10 rounded-lg cursor-pointer inline-flex items-center gap-1 font-bold text-xs"><Boxes className="w-4 h-4" /> Kelola Unit</button>
+                            <button type="button" onClick={() => handleEditClick(item)} className="p-2.5 border border-surface-container text-outline hover:text-primary rounded-lg cursor-pointer inline-flex items-center"><Edit2 className="w-4 h-4" /></button>
+                            <button type="button" onClick={() => handleDeletePerangkat(item)} className="p-2.5 border border-surface-container text-outline hover:text-error rounded-lg cursor-pointer inline-flex items-center"><Trash2 className="w-4 h-4" /></button>
+                          </td>
+                        </motion.tr>
+                      );
+                    })}
                   </AnimatePresence>
                 )}
               </tbody>
             </table>
           </div>
         </div>
+
+        {/* Modal Pop-Up Deskripsi Full */}
+        <AnimatePresence>
+          {selectedDeskripsi && (
+            <div className="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="bg-white w-full max-w-lg border border-surface-container-high rounded-xl shadow-xl p-6 space-y-4">
+                <div className="flex justify-between items-start border-b border-surface-container pb-3">
+                  <div>
+                    <span className="text-xs font-bold text-primary uppercase tracking-wider">Detail Deskripsi</span>
+                    <h3 className="text-lg font-bold text-on-surface">{selectedDeskripsi.nama}</h3>
+                  </div>
+                  <button onClick={() => setSelectedDeskripsi(null)} className="text-outline hover:text-on-surface p-1.5 rounded-lg border cursor-pointer"><X className="w-5 h-5" /></button>
+                </div>
+                <div className="bg-surface-low p-4 rounded-lg border border-surface-container max-h-60 overflow-y-auto">
+                  <p className="text-sm font-medium text-on-surface leading-relaxed whitespace-pre-line break-words">
+                    {selectedDeskripsi.deskripsi}
+                  </p>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <button onClick={() => setSelectedDeskripsi(null)} className="px-5 py-2 text-sm font-bold text-white bg-primary hover:bg-primary-container rounded-lg shadow-xs cursor-pointer">
+                    Tutup
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         <ExportPdfModal isOpen={modalState.pdf} onClose={() => setModalState(prev => ({ ...prev, pdf: false }))} laborList={filteredLaborList} displayItems={displayItems} {...(currentUser ? { currentUser } : {})} />
 

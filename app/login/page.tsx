@@ -89,15 +89,6 @@ export default function LoginPage() {
               <ShieldCheck className="w-5 h-5 text-white animate-pulse" />
               <span className="text-xs font-bold tracking-widest uppercase">SMKN 4 Payakumbuh</span>
             </div>
-            
-            {/* Tombol Beranda di Sisi Kiri (Desktop) */}
-            <Link 
-              href="/"
-              className="inline-flex items-center gap-2 text-xs font-semibold text-white/80 hover:text-white bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg backdrop-blur-sm transition-all"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              Beranda
-            </Link>
           </div>
 
           <div className="space-y-4 relative z-10">

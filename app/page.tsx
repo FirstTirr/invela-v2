@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
-  ShieldCheck, UserCheck, GraduationCap, Wrench, Boxes, PieChart,
+  ShieldCheck, UserCheck, GraduationCap, Wrench, PieChart,
   ShieldAlert, Menu, X, Zap, Clock, Smartphone, Database,
   LayoutDashboard, Sparkles, Loader2, ArrowRight
 } from "lucide-react";
@@ -13,7 +14,7 @@ import Footer from "@/components/footer";
 import { useTheme } from "@/components/theme-provider";
 import ThemeToggle from "@/components/theme-toggle";
 
-// --- DATA CONSTANTS (Memisahkan data dari logika UI) ---
+// --- DATA CONSTANTS ---
 const NAV_LINKS = ["Tentang", "Fitur", "Cara Kerja", "Akses"];
 
 const STATS = [
@@ -112,7 +113,7 @@ export default function Home() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Read Auth State Safely in Lazy Initializer
+  // Read Auth State Safely
   const [{ isLoggedIn, userRole, checkingAuth }] = useState(() => {
     if (typeof window === "undefined") {
       return { isLoggedIn: false, userRole: null, checkingAuth: true };
@@ -148,10 +149,21 @@ export default function Home() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Helper Class Style
+  // Smooth Scroll Handler
+  const handleScrollTo = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    e.preventDefault();
+    setMobileMenuOpen(false);
+    const element = document.getElementById(targetId);
+    if (element) {
+      const yOffset = -90; // Adjust offset for floating navbar height
+      const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: "smooth" });
+    }
+  };
+
   const theme = {
     bg: isLight ? "bg-slate-50 text-slate-900" : "bg-slate-950 text-white",
-    cardBg: isLight ? "bg-white border-slate-200 shadow-xl" : "bg-linear-to-br from-slate-900 to-slate-950 border-white/10",
+    cardBg: isLight ? "bg-white border-slate-200 shadow-xl" : "bg-gradient-to-br from-slate-900 to-slate-950 border-white/10",
     navBg: isLight ? "bg-white/80 border-slate-200 shadow-sm" : "bg-slate-900/80 border-white/10",
     textSub: isLight ? "text-slate-600" : "text-slate-400",
     textHead: isLight ? "text-slate-900" : "text-white",
@@ -171,7 +183,7 @@ export default function Home() {
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${theme.bg} selection:bg-cyan-500 selection:text-slate-900 overflow-x-hidden font-sans`}>
+    <div className={`min-h-screen transition-colors duration-300 ${theme.bg} selection:bg-cyan-500 selection:text-slate-900 overflow-x-hidden font-sans scroll-smooth`}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
@@ -187,8 +199,15 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className={`mx-auto backdrop-blur-xl border rounded-2xl px-6 py-3 flex items-center justify-between transition-all duration-300 ${theme.navBg}`}>
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 flex items-center justify-center bg-linear-to-br from-cyan-500 to-blue-600 rounded-xl shadow-lg shadow-cyan-500/20 text-white font-bold">
-                <Boxes className="w-5 h-5" />
+              <div className="relative w-10 h-10 overflow-hidden rounded-xl shadow-lg shadow-cyan-500/20 shrink-0">
+                <Image
+                  src="/logoRounded.png"
+                  alt="Invela Control Logo"
+                  fill
+                  sizes="40px"
+                  className="object-cover"
+                  priority
+                />
               </div>
               <span className={`text-xl font-bold tracking-tight ${theme.textHead}`}>
                 Inventaris<span className="text-cyan-400"> Labor</span>
@@ -197,12 +216,20 @@ export default function Home() {
 
             {/* Desktop Navigation Links */}
             <div className="hidden md:flex items-center gap-8">
-              {NAV_LINKS.map((item) => (
-                <a key={item} href={`#${item.toLowerCase().replace(" ", "-")}`} className={`text-sm font-medium transition-colors relative group ${theme.textSub}`}>
-                  {item}
-                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-cyan-400 transition-all group-hover:w-full" />
-                </a>
-              ))}
+              {NAV_LINKS.map((item) => {
+                const targetId = item.toLowerCase().replace(" ", "-");
+                return (
+                  <a
+                    key={item}
+                    href={`#${targetId}`}
+                    onClick={(e) => handleScrollTo(e, targetId)}
+                    className={`text-sm font-medium transition-colors relative group ${theme.textSub}`}
+                  >
+                    {item}
+                    <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-cyan-400 transition-all group-hover:w-full" />
+                  </a>
+                );
+              })}
             </div>
 
             <div className="hidden md:flex items-center gap-4">
@@ -211,7 +238,7 @@ export default function Home() {
                 href={isLoggedIn && userRole ? `/${userRole}` : "/login"}
                 className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
                   isLoggedIn
-                    ? "bg-linear-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 hover:scale-105"
+                    ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 hover:scale-105"
                     : isLight ? "bg-slate-900 text-white hover:bg-slate-800" : "bg-white text-slate-900 hover:bg-cyan-50"
                 }`}
               >
@@ -229,11 +256,19 @@ export default function Home() {
         {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className={`absolute top-full left-4 right-4 mt-2 p-4 backdrop-blur-xl border rounded-2xl flex flex-col gap-4 md:hidden ${theme.navBg}`}>
-            {NAV_LINKS.map((item) => (
-              <a key={item} href={`#${item.toLowerCase().replace(" ", "-")}`} onClick={() => setMobileMenuOpen(false)} className={`font-medium ${theme.textSub}`}>
-                {item}
-              </a>
-            ))}
+            {NAV_LINKS.map((item) => {
+              const targetId = item.toLowerCase().replace(" ", "-");
+              return (
+                <a
+                  key={item}
+                  href={`#${targetId}`}
+                  onClick={(e) => handleScrollTo(e, targetId)}
+                  className={`font-medium ${theme.textSub}`}
+                >
+                  {item}
+                </a>
+              );
+            })}
             <div className="flex items-center justify-between border-t pt-4 border-slate-200/10">
               <span className="text-sm font-medium">Tema Visual</span>
               <ThemeToggle />
@@ -260,7 +295,7 @@ export default function Home() {
 
           <h1 className={`text-5xl sm:text-7xl font-extrabold tracking-tight mb-8 leading-tight ${theme.textHead}`}>
             Inventaris Labor <br />
-            <span className="text-transparent bg-clip-text bg-linear-to-r from-cyan-400 via-blue-500 to-purple-600">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-500 to-purple-600">
               Berbasis Website Modern
             </span>
           </h1>
@@ -270,12 +305,20 @@ export default function Home() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-6">
-            <a href="#cara-kerja" className="group relative px-8 py-4 bg-cyan-500 text-slate-900 rounded-2xl font-bold text-lg overflow-hidden transition-all hover:scale-105 shadow-lg shadow-cyan-500/20">
+            <a
+              href="#cara-kerja"
+              onClick={(e) => handleScrollTo(e, "cara-kerja")}
+              className="group relative px-8 py-4 bg-cyan-500 text-slate-900 rounded-2xl font-bold text-lg overflow-hidden transition-all hover:scale-105 shadow-lg shadow-cyan-500/20"
+            >
               <span className="relative flex items-center gap-2">
                 <Sparkles className="w-5 h-5" /> Pelajari Lebih Lanjut
               </span>
             </a>
-            <a href="#akses" className={`px-8 py-4 border rounded-2xl font-bold text-lg transition-all hover:scale-105 backdrop-blur-sm ${isLight ? "bg-white/50 border-slate-200 text-slate-700" : "bg-white/5 border-white/10 text-white"}`}>
+            <a
+              href="#akses"
+              onClick={(e) => handleScrollTo(e, "akses")}
+              className={`px-8 py-4 border rounded-2xl font-bold text-lg transition-all hover:scale-105 backdrop-blur-sm ${isLight ? "bg-white/50 border-slate-200 text-slate-700" : "bg-white/5 border-white/10 text-white"}`}
+            >
               Portal Akses
             </a>
           </div>
@@ -416,7 +459,7 @@ export default function Home() {
                 >
                   {/* Ambient Gradient Glow Background */}
                   <div
-                    className={`absolute inset-0 bg-linear-to-br ${item.bgGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`}
+                    className={`absolute inset-0 bg-gradient-to-br ${item.bgGradient} opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`}
                   />
 
                   {/* Top Section: Icon & Hover Arrow */}
@@ -452,7 +495,7 @@ export default function Home() {
                   </div>
 
                   {/* Bottom Subtle Light Bar */}
-                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-linear-to-r from-transparent via-cyan-400 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                 </Link>
               );
             })}

@@ -227,7 +227,7 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
       if (username) {
         return {
           name: username,
-          role: 'SMKN 4 Payakumbuh',
+          role: 'Kepala Bengkel',
           initials: username.slice(0, 2).toUpperCase()
         };
       }

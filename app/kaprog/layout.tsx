@@ -21,7 +21,7 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
       if (storedUser) {
         const user = JSON.parse(storedUser);
         const name = user.nama_lengkap || user.username || user.nama || 'Kepala Program';
-        const jurusan = user.jurusan || user.nama_jurusan ? `Kaprog ${user.jurusan || user.nama_jurusan}` : 'Kaprog Program';
+        const jurusan = user.jurusan || user.nama_jurusan ? `Kaprog ${user.jurusan || user.nama_jurusan}` : 'Kepala Program Studi';
         const initials = name.slice(0, 2).toUpperCase();
 
         setUserData({ name, role: jurusan, initials });
@@ -30,7 +30,7 @@ export default function KaprogLayout({ children }: { children: React.ReactNode }
         if (username) {
           setUserData({
             name: username,
-            role: 'Kaprog Program',
+            role: 'Kepala Program Studi',
             initials: username.slice(0, 2).toUpperCase()
           });
         }

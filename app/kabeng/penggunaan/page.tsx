@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { Search, MonitorCheck, Calendar, Filter, Loader2, Trash2, RefreshCw, FileSpreadsheet, FileText, X, Download } from 'lucide-react';
+import { Search, MonitorCheck, Calendar, Filter, Loader2, Trash2, RefreshCw, FileSpreadsheet, FileText, X, Download, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { apiLabor, apiPenggunaan, apiJurusan, Labor, Penggunaan, Jurusan } from '@/lib/api';
 
@@ -58,6 +58,10 @@ export default function PenggunaanLaborPage() {
   const [userJurusanName, setUserJurusanName] = useState('');
   const [userJurusanId, setUserJurusanId] = useState<number | null>(null);
   const [userRole, setUserRole] = useState('');
+
+  // State Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [pdfSignJabatan, setPdfSignJabatan] = useState('Kepala Bengkel');
@@ -124,7 +128,6 @@ export default function PenggunaanLaborPage() {
       } else {
         setErrorMsg('Gagal memuat log penggunaan laboratorium.');
       }
-      // safe fallback
     } finally {
       setLoadingLogs(false);
       setLoadingLabor(false);
@@ -232,28 +235,46 @@ export default function PenggunaanLaborPage() {
 
   const getLaborName = (log: ExtendedPenggunaan) => log.labor?.labor || log.labor?.nama_labor || log.Labor?.labor || log.Labor?.nama_labor || '-';
 
-  const filteredLogs = usageLogs.filter((log) => {
-    const namaKelas = log.kelas?.kelas || log.Kelas?.kelas || '';
-    const namaLabor = getLaborName(log);
-    const namaGuru = log.nama_pengguna || log.NamaPengguna || '';
+  const filteredLogs = useMemo(() => {
+    return usageLogs.filter((log) => {
+      const namaKelas = log.kelas?.kelas || log.Kelas?.kelas || '';
+      const namaLabor = getLaborName(log);
+      const namaGuru = log.nama_pengguna || log.NamaPengguna || '';
 
-    const matchesSearch = [namaKelas, namaGuru, namaLabor].some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesLabor = selectedLabor === 'Semua' || namaLabor.toLowerCase() === selectedLabor.toLowerCase();
+      const matchesSearch = [namaKelas, namaGuru, namaLabor].some(s => s.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesLabor = selectedLabor === 'Semua' || namaLabor.toLowerCase() === selectedLabor.toLowerCase();
 
-    if (userRole === 'admin' || userRole === 'superadmin') return matchesSearch && matchesLabor;
+      if (userRole === 'admin' || userRole === 'superadmin') return matchesSearch && matchesLabor;
 
-    const lLab = log.labor || log.Labor;
-    const lKelas = log.kelas || log.Kelas;
-    const labJId = Number(lLab?.id_jurusan ?? lLab?.idJurusan ?? lLab?.jurusan?.id ?? 0);
-    const kelJId = Number(lKelas?.id_jurusan ?? lKelas?.idJurusan ?? lKelas?.jurusan?.id ?? 0);
-    const labJName = (lLab?.jurusan?.nama_jurusan || lLab?.jurusan?.jurusan || '').toLowerCase();
-    const kelJName = (lKelas?.jurusan?.nama_jurusan || lKelas?.jurusan?.jurusan || '').toLowerCase();
+      const lLab = log.labor || log.Labor;
+      const lKelas = log.kelas || log.Kelas;
+      const labJId = Number(lLab?.id_jurusan ?? lLab?.idJurusan ?? lLab?.jurusan?.id ?? 0);
+      const kelJId = Number(lKelas?.id_jurusan ?? lKelas?.idJurusan ?? lKelas?.jurusan?.id ?? 0);
+      const labJName = (lLab?.jurusan?.nama_jurusan || lLab?.jurusan?.jurusan || '').toLowerCase();
+      const kelJName = (lKelas?.jurusan?.nama_jurusan || lKelas?.jurusan?.jurusan || '').toLowerCase();
 
-    const isAllowed = (userJurusanId && (labJId === userJurusanId || kelJId === userJurusanId)) ||
-      (userJurusanName && (labJName.includes(userJurusanName) || kelJName.includes(userJurusanName)));
+      const isAllowed = (userJurusanId && (labJId === userJurusanId || kelJId === userJurusanId)) ||
+        (userJurusanName && (labJName.includes(userJurusanName) || kelJName.includes(userJurusanName)));
 
-    return matchesSearch && matchesLabor && isAllowed;
-  });
+      return matchesSearch && matchesLabor && isAllowed;
+    });
+  }, [usageLogs, searchQuery, selectedLabor, userRole, userJurusanId, userJurusanName]);
+
+  // Reset Halaman ke-1 saat pencarian, filter, atau jumlah entri berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedLabor, itemsPerPage]);
+
+  // Perhitungan Pagination
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage) || 1;
+
+  const currentLogs = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredLogs.slice(start, start + itemsPerPage);
+  }, [filteredLogs, currentPage, itemsPerPage]);
+
+  const startIndex = (currentPage - 1) * itemsPerPage + 1;
+  const endIndex = Math.min(currentPage * itemsPerPage, filteredLogs.length);
 
   const exportExcel = async () => {
     if (!filteredLogs.length) return alert("Tidak ada data untuk diexport!");
@@ -404,6 +425,7 @@ export default function PenggunaanLaborPage() {
             <table className="w-full text-left border-collapse text-base min-w-[900px]">
               <thead className="bg-surface-low border-y border-surface-container-high">
                 <tr>
+                  <th className="p-4 text-xs font-bold uppercase w-12 text-center">No</th>
                   <th className="p-4 text-xs font-bold uppercase">TGL & ID</th>
                   <th className="p-4 text-xs font-bold uppercase">Kelas Menggunakan</th>
                   <th className="p-4 text-xs font-bold uppercase">Laboratorium</th>
@@ -414,15 +436,18 @@ export default function PenggunaanLaborPage() {
               </thead>
               <tbody className="divide-y divide-surface-container text-on-surface font-semibold">
                 {loadingLogs ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-outline"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" /> Memuat log...</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-outline"><Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" /> Memuat log...</td></tr>
                 ) : errorMsg ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-red-600 font-medium">{errorMsg}</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-red-600 font-medium">{errorMsg}</td></tr>
                 ) : filteredLogs.length === 0 ? (
-                  <tr><td colSpan={6} className="p-8 text-center text-outline font-medium">Tidak ada log penggunaan laboratorium.</td></tr>
+                  <tr><td colSpan={7} className="p-8 text-center text-outline font-medium">Tidak ada log penggunaan laboratorium.</td></tr>
                 ) : (
-                  filteredLogs.map((log) => {
+                  currentLogs.map((log, idx) => {
                     return (
                       <tr key={log.id} className="hover:bg-surface-low/30 transition-colors">
+                        <td className="p-4 text-center text-outline font-mono text-xs">
+                          {(currentPage - 1) * itemsPerPage + idx + 1}
+                        </td>
                         <td className="p-4 whitespace-nowrap">
                           <div className="text-sm font-bold flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-outline" /> {formatDate(log.created_at)}</div>
                           <span className="text-xs font-mono text-outline">LOG-{log.id}</span>
@@ -447,6 +472,65 @@ export default function PenggunaanLaborPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Bar Navigation Pagination */}
+          {!loadingLogs && filteredLogs.length > 0 && (
+            <div className="p-4 border-t border-surface-container-high bg-surface-low/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4 text-xs font-semibold text-outline">
+                <span>
+                  Menampilkan {startIndex} - {endIndex} dari {filteredLogs.length} entri
+                </span>
+                <div className="flex items-center gap-2">
+                  <span>Per halaman:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    className="bg-white border border-surface-container-high rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer font-bold"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 border border-surface-container-high rounded-lg text-on-surface hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
+                      currentPage === page
+                        ? 'bg-primary text-white border-primary shadow-xs'
+                        : 'bg-white border-surface-container-high text-on-surface hover:bg-surface-low'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 border border-surface-container-high rounded-lg text-on-surface hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <AnimatePresence>

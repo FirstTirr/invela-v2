@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { Trash2, Edit, Loader2, RefreshCw, X, Save } from 'lucide-react';
+import { Trash2, Edit, Loader2, RefreshCw, X, Save, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiJurusan, Jurusan } from '@/lib/api/jurusan';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -12,6 +12,11 @@ export default function ReadJurusanPage() {
   const [jurusanList, setJurusanList] = useState<Jurusan[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // State untuk Search & Pagination
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   // Modal State
   const [isOpenEditModal, setIsOpenEditModal] = useState(false);
@@ -68,6 +73,31 @@ export default function ReadJurusanPage() {
     };
   }, []);
 
+  // Filter jurusan berdasarkan query pencarian
+  const filteredJurusanList = useMemo(() => {
+    return jurusanList.filter((j) => {
+      const extJ = j as ExtendedJurusan;
+      const displayName = (j.nama_jurusan || extJ.jurusan || '').toLowerCase();
+      return displayName.includes(searchQuery.toLowerCase().trim());
+    });
+  }, [jurusanList, searchQuery]);
+
+  // Hitung total halaman berdasarkan hasil filter
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredJurusanList.length / itemsPerPage) || 1;
+  }, [filteredJurusanList.length, itemsPerPage]);
+
+  // Potong data jurusan sesuai halaman aktif
+  const paginatedJurusanList = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredJurusanList.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredJurusanList, currentPage, itemsPerPage]);
+
+  // Reset ke halaman 1 jika filter pencarian atau batas per halaman berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
+
   const handleDelete = async (id: number, nama: string) => {
     if (!confirm(`Yakin ingin menghapus [${nama}]?`)) return;
     try {
@@ -115,13 +145,53 @@ export default function ReadJurusanPage() {
           </div>
           <button
             onClick={fetchJurusan}
-            className="p-2 border border-surface-container-high rounded-xl hover:bg-surface-low text-on-surface transition-all"
+            className="p-2 border border-surface-container-high rounded-xl hover:bg-surface-low text-on-surface transition-all cursor-pointer"
             title="Refresh Data"
           >
             <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
           </button>
         </div>
 
+        {/* Control Section: Search & Items Per Page */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          {/* Input Search */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-outline" />
+            <input
+              type="text"
+              placeholder="Cari jurusan..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-11 pr-10 py-2.5 border border-surface-container-high rounded-xl text-base bg-white text-on-surface placeholder:text-outline/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all font-medium shadow-xs"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Selector Items Per Page */}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <span className="text-sm font-semibold text-on-surface-variant">Tampilkan:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => setItemsPerPage(Number(e.target.value))}
+              className="px-3 py-2 border border-surface-container-high rounded-xl text-sm font-bold bg-white text-on-surface focus:outline-none focus:border-primary shadow-xs cursor-pointer"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={30}>30</option>
+              <option value={50}>50</option>
+            </select>
+            <span className="text-sm font-semibold text-on-surface-variant">data</span>
+          </div>
+        </div>
+
+        {/* Tabel Data Jurusan */}
         <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-sm w-full">
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left border-collapse text-base min-w-[300px]">
@@ -143,12 +213,14 @@ export default function ReadJurusanPage() {
                   <tr>
                     <td colSpan={2} className="p-8 text-center text-error">{error}</td>
                   </tr>
-                ) : jurusanList.length === 0 ? (
+                ) : filteredJurusanList.length === 0 ? (
                   <tr>
-                    <td colSpan={2} className="p-8 text-center text-outline">Belum ada data jurusan.</td>
+                    <td colSpan={2} className="p-8 text-center text-outline font-medium">
+                      {searchQuery ? `Tidak ada jurusan dengan kata kunci "${searchQuery}".` : 'Belum ada data jurusan.'}
+                    </td>
                   </tr>
                 ) : (
-                  jurusanList.map((j) => {
+                  paginatedJurusanList.map((j) => {
                     const extJ = j as ExtendedJurusan;
                     const displayName = j.nama_jurusan || extJ.jurusan || '';
                     return (
@@ -160,12 +232,14 @@ export default function ReadJurusanPage() {
                           <button
                             onClick={() => handleOpenEdit(j)}
                             className="p-2 text-outline hover:text-primary hover:bg-secondary-container rounded-lg transition-colors cursor-pointer"
+                            title="Edit Jurusan"
                           >
                             <Edit className="w-5 h-5" />
                           </button>
                           <button
                             onClick={() => handleDelete(j.id, displayName)}
                             className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer"
+                            title="Hapus Jurusan"
                           >
                             <Trash2 className="w-5 h-5" />
                           </button>
@@ -177,6 +251,51 @@ export default function ReadJurusanPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Footer Navigasi Pagination */}
+          {!loading && !error && filteredJurusanList.length > 0 && (
+            <div className="p-4 border-t border-surface-container-high flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-low/50">
+              <div className="text-sm font-medium text-on-surface-variant">
+                Menampilkan <span className="font-bold text-on-surface">{(currentPage - 1) * itemsPerPage + 1}</span> - <span className="font-bold text-on-surface">{Math.min(currentPage * itemsPerPage, filteredJurusanList.length)}</span> dari <span className="font-bold text-on-surface">{filteredJurusanList.length}</span> jurusan
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-lg border border-surface-container-high hover:bg-surface-low text-on-surface transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Sebelumnya"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+
+                <div className="flex items-center gap-1 px-2">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
+                        currentPage === page
+                          ? 'bg-primary text-white shadow-xs'
+                          : 'hover:bg-surface-low text-on-surface-variant'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-lg border border-surface-container-high hover:bg-surface-low text-on-surface transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Selanjutnya"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Modal Edit */}
@@ -191,7 +310,7 @@ export default function ReadJurusanPage() {
               >
                 <div className="flex justify-between items-center border-b border-surface-container pb-3">
                   <h3 className="text-lg font-bold text-on-surface">Ubah Data Jurusan</h3>
-                  <button onClick={() => setIsOpenEditModal(false)} className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container">
+                  <button onClick={() => setIsOpenEditModal(false)} className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer">
                     <X className="w-5 h-5" />
                   </button>
                 </div>

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import PageAnimateWrapper from "@/components/page-animate-wrapper";
-import { History, Search, FileSpreadsheet, Printer, Loader2, AlertCircle, ArrowLeft, X, FileCheck } from "lucide-react";
+import { History, Search, FileSpreadsheet, Printer, Loader2, AlertCircle, ArrowLeft, X, FileCheck, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -41,6 +41,10 @@ export default function RepairHistoryPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [userJurusanName, setUserJurusanName] = useState<string>("-");
+
+  // State Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // State Modal TTD
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
@@ -155,6 +159,22 @@ export default function RepairHistoryPage() {
     );
   });
 
+  // Reset Halaman ke 1 jika ada pencarian baru atau opsi per halaman berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
+
+  // Logic Pagination
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
+
+  const currentHistoryData = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredData.slice(start, start + itemsPerPage);
+  }, [filteredData, currentPage, itemsPerPage]);
+
+  const startIndex = (currentPage - 1) * itemsPerPage + 1;
+  const endIndex = Math.min(currentPage * itemsPerPage, filteredData.length);
+
   const totalBiaya = filteredData.reduce((acc, curr) => acc + (Number(curr.biaya) || 0), 0);
 
   const handleExportExcel = () => {
@@ -214,8 +234,8 @@ export default function RepairHistoryPage() {
       styles: { fontSize: 8, cellPadding: 5 },
     });
 
-    const totalPages = doc.getNumberOfPages();
-    doc.setPage(totalPages);
+    const totalPagesPDF = doc.getNumberOfPages();
+    doc.setPage(totalPagesPDF);
 
     const signX = 40; 
     const signY = ph - 110; 
@@ -287,41 +307,104 @@ export default function RepairHistoryPage() {
               <p className="text-sm font-bold text-error">{errorMsg}</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-sm min-w-[700px]">
-                <thead className="bg-surface-low border-b border-surface-container-high text-xs font-bold uppercase">
-                  <tr>
-                    <th className="p-3.5 text-center w-10">No</th>
-                    <th className="p-3.5">Tanggal</th>
-                    <th className="p-3.5">Barang / Unit</th>
-                    <th className="p-3.5">Teknisi / Pelapor</th>
-                    <th className="p-3.5 w-1/3">Deskripsi Perbaikan</th>
-                    <th className="p-3.5 text-right">Biaya</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-container font-semibold">
-                  {filteredData.length === 0 ? (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-sm min-w-[700px]">
+                  <thead className="bg-surface-low border-b border-surface-container-high text-xs font-bold uppercase">
                     <tr>
-                      <td colSpan={6} className="p-6 text-center text-outline">Tidak ada riwayat perbaikan ditemukan.</td>
+                      <th className="p-3.5 text-center w-10">No</th>
+                      <th className="p-3.5">Tanggal</th>
+                      <th className="p-3.5">Barang / Unit</th>
+                      <th className="p-3.5">Teknisi / Pelapor</th>
+                      <th className="p-3.5 w-1/3">Deskripsi Perbaikan</th>
+                      <th className="p-3.5 text-right">Biaya</th>
                     </tr>
-                  ) : (
-                    filteredData.map((item, idx) => (
-                      <tr key={item.id || idx} className="hover:bg-surface-low/30">
-                        <td className="p-3.5 text-center text-outline">{idx + 1}</td>
-                        <td className="p-3.5 font-mono text-outline whitespace-nowrap">{formatDate(item.tanggal_perbaikan)}</td>
-                        <td className="p-3.5 font-bold">
-                          {item.nama_perangkat || "Perangkat"}
-                          <span className="text-xs font-mono text-outline font-normal block">{item.kode_asset || "-"}</span>
-                        </td>
-                        <td className="p-3.5 whitespace-nowrap">{pelaporMap[item.kerusakan_id] || item.nama_teknisi || "-"}</td>
-                        <td className="p-3.5 font-medium">{item.deskripsi_perbaikan || "-"}</td>
-                        <td className="p-3.5 text-right text-emerald-700 whitespace-nowrap font-bold">{formatRupiah(item.biaya)}</td>
+                  </thead>
+                  <tbody className="divide-y divide-surface-container font-semibold">
+                    {filteredData.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-6 text-center text-outline">Tidak ada riwayat perbaikan ditemukan.</td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ) : (
+                      currentHistoryData.map((item, idx) => (
+                        <tr key={item.id || idx} className="hover:bg-surface-low/30">
+                          <td className="p-3.5 text-center text-outline">
+                            {(currentPage - 1) * itemsPerPage + idx + 1}
+                          </td>
+                          <td className="p-3.5 font-mono text-outline whitespace-nowrap">{formatDate(item.tanggal_perbaikan)}</td>
+                          <td className="p-3.5 font-bold">
+                            {item.nama_perangkat || "Perangkat"}
+                            <span className="text-xs font-mono text-outline font-normal block">{item.kode_asset || "-"}</span>
+                          </td>
+                          <td className="p-3.5 whitespace-nowrap">{pelaporMap[item.kerusakan_id] || item.nama_teknisi || "-"}</td>
+                          <td className="p-3.5 font-medium">{item.deskripsi_perbaikan || "-"}</td>
+                          <td className="p-3.5 text-right text-emerald-700 whitespace-nowrap font-bold">{formatRupiah(item.biaya)}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* BAR PAGINATION */}
+              {filteredData.length > 0 && (
+                <div className="p-4 border-t border-surface-container-high bg-surface-low/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 text-xs font-semibold text-outline">
+                    <span>
+                      Menampilkan {startIndex} - {endIndex} dari {filteredData.length} data
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span>Per halaman:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                        className="bg-white border border-surface-container-high rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer font-bold"
+                      >
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="p-2 border border-surface-container-high rounded-lg text-on-surface hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
+                          currentPage === page
+                            ? 'bg-primary text-white border-primary shadow-xs'
+                            : 'bg-white border-surface-container-high text-on-surface hover:bg-surface-low'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="p-2 border border-surface-container-high rounded-lg text-on-surface hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

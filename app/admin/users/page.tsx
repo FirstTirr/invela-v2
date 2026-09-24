@@ -2,14 +2,21 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { Plus, Trash2, X, User, Key, Shield, Network, Eye, EyeOff, Loader2, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, X, User, Key, Shield, Network, Eye, EyeOff, Loader2, RefreshCw, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiJurusan, Jurusan, apiUsers, UserResponse } from '@/lib/api';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function UsersCRUDPage() {
   const [users, setUsers] = useState<UserResponse[]>([]);
   const [loadingUsers, setLoadingUsers] = useState<boolean>(true);
   const [errorUsers, setErrorUsers] = useState<string | null>(null);
 
+  // State Search & Pagination
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
+
+  // Modal State
   const [isOpenModal, setIsOpenModal] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -86,6 +93,49 @@ export default function UsersCRUDPage() {
     };
   }, [fetchUsers, fetchJurusanData]);
 
+  // Helper membaca nama jurusan pengguna
+  const getDisplayJurusanName = useCallback((user: UserResponse) => {
+    const rawJurusan = user.jurusan as unknown;
+
+    if (typeof rawJurusan === 'string') {
+      return rawJurusan;
+    } else if (rawJurusan && typeof rawJurusan === 'object' && 'nama_jurusan' in rawJurusan) {
+      return String((rawJurusan as { nama_jurusan?: string }).nama_jurusan || 'SEMUA JURUSAN');
+    }
+
+    return 'SEMUA JURUSAN';
+  }, []);
+
+  // Filter daftar pengguna berdasarkan query pencarian (username, jurusan, role)
+  const filteredUsers = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return users;
+
+    return users.filter((user) => {
+      const username = user.username.toLowerCase();
+      const jurusanName = getDisplayJurusanName(user).toLowerCase();
+      const role = (user.role || '').toLowerCase();
+
+      return username.includes(q) || jurusanName.includes(q) || role.includes(q);
+    });
+  }, [users, searchQuery, getDisplayJurusanName]);
+
+  // Hitung total halaman
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredUsers.length / itemsPerPage) || 1;
+  }, [filteredUsers.length, itemsPerPage]);
+
+  // Potong data pengguna sesuai halaman aktif
+  const paginatedUsers = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredUsers.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredUsers, currentPage, itemsPerPage]);
+
+  // Reset ke halaman 1 saat query pencarian atau batas per halaman berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
+
   const handleOpenModal = () => {
     const initialRoleId = 1;
     const defaultJurusanId = !isGlobalRole(initialRoleId) && filteredJurusanList.length > 0
@@ -156,7 +206,7 @@ export default function UsersCRUDPage() {
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Terjadi kesalahan saat menyimpan';
       alert(`Gagal menyimpan akun: ${errorMsg}`);
-    } fontFinally: {
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -189,6 +239,45 @@ export default function UsersCRUDPage() {
           </div>
         </div>
 
+        {/* Control Section: Search & Items Per Page */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          {/* Input Search */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-outline" />
+            <input
+              type="text"
+              placeholder="Cari username, jurusan, atau role..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-11 pr-10 py-2.5 border border-surface-container-high rounded-xl text-base bg-white text-on-surface placeholder:text-outline/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all font-medium shadow-xs"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Selector Items Per Page */}
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <span className="text-sm font-semibold text-on-surface-variant">Tampilkan:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => setItemsPerPage(Number(e.target.value))}
+              className="px-3 py-2 border border-surface-container-high rounded-xl text-sm font-bold bg-white text-on-surface focus:outline-none focus:border-primary shadow-xs cursor-pointer"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={30}>30</option>
+              <option value={50}>50</option>
+            </select>
+            <span className="text-sm font-semibold text-on-surface-variant">data</span>
+          </div>
+        </div>
+
         {/* Table Monitoring */}
         <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-sm w-full">
           <div className="overflow-x-auto w-full whitespace-nowrap">
@@ -215,22 +304,15 @@ export default function UsersCRUDPage() {
                       {errorUsers}
                     </td>
                   </tr>
-                ) : users.length === 0 ? (
+                ) : filteredUsers.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-outline font-bold">
-                      Belum ada data akun pengguna.
+                    <td colSpan={4} className="p-8 text-center text-outline font-medium">
+                      {searchQuery ? `Tidak ada akun pengguna dengan kata kunci "${searchQuery}".` : 'Belum ada data akun pengguna.'}
                     </td>
                   </tr>
                 ) : (
-                  users.map((user) => {
-                    const rawJurusan = user.jurusan as unknown;
-                    let namaJurusanDisplay = 'SEMUA JURUSAN';
-
-                    if (typeof rawJurusan === 'string') {
-                      namaJurusanDisplay = rawJurusan;
-                    } else if (rawJurusan && typeof rawJurusan === 'object' && 'nama_jurusan' in rawJurusan) {
-                      namaJurusanDisplay = String((rawJurusan as { nama_jurusan?: string }).nama_jurusan || 'SEMUA JURUSAN');
-                    }
+                  paginatedUsers.map((user) => {
+                    const namaJurusanDisplay = getDisplayJurusanName(user);
 
                     return (
                       <tr key={user.id} className="hover:bg-surface-low/30 transition-colors">
@@ -259,135 +341,187 @@ export default function UsersCRUDPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Navigasi Pagination */}
+          {!loadingUsers && !errorUsers && filteredUsers.length > 0 && (
+            <div className="p-4 border-t border-surface-container-high flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-low/50">
+              <div className="text-sm font-medium text-on-surface-variant">
+                Menampilkan <span className="font-bold text-on-surface">{(currentPage - 1) * itemsPerPage + 1}</span> - <span className="font-bold text-on-surface">{Math.min(currentPage * itemsPerPage, filteredUsers.length)}</span> dari <span className="font-bold text-on-surface">{filteredUsers.length}</span> pengguna
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-lg border border-surface-container-high hover:bg-surface-low text-on-surface transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Sebelumnya"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+
+                <div className="flex items-center gap-1 px-2">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
+                        currentPage === page
+                          ? 'bg-primary text-white shadow-xs'
+                          : 'hover:bg-surface-low text-on-surface-variant'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-lg border border-surface-container-high hover:bg-surface-low text-on-surface transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Selanjutnya"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Modal Form Dialog Tambah Akun */}
-        {isOpenModal && (
-          <div className="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white w-full max-w-xl border border-surface-container-high rounded-xl shadow-2xl p-6 space-y-6 animate-in fade-in zoom-in-95 duration-150">
-              <div className="flex justify-between items-center border-b border-surface-container pb-3">
-                <h3 className="text-xl font-bold text-on-surface">Registrasi Akun Otoritas</h3>
-                <button
-                  onClick={() => { setIsOpenModal(false); setShowPassword(false); }}
-                  className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
-                    <User className="w-3.5 h-3.5" /> Username (Wajib Smkn4pyk.com)
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    pattern=".*@smkn4pyk\.com$"
-                    title="Username wajib menyertakan domain '@smkn4pyk.com' di akhir kalimat."
-                    placeholder="Contoh: namaotoritas@smkn4pyk.com"
-                    value={formData.username}
-                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                    className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface placeholder:text-outline/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-medium shadow-sm"
-                  />
+        <AnimatePresence>
+          {isOpenModal && (
+            <div className="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.96 }}
+                className="bg-white w-full max-w-xl border border-surface-container-high rounded-xl shadow-2xl p-6 space-y-6"
+              >
+                <div className="flex justify-between items-center border-b border-surface-container pb-3">
+                  <h3 className="text-xl font-bold text-on-surface">Registrasi Akun Otoritas</h3>
+                  <button
+                    onClick={() => { setIsOpenModal(false); setShowPassword(false); }}
+                    className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center justify-between">
-                    <span className="flex items-center gap-1.5"><Key className="w-3.5 h-3.5" /> Password</span>
-                    <span className="text-[10px] text-outline tracking-normal font-medium lowercase">(Hanya kombinasi huruf dan angka, tanpa spasi)</span>
-                  </label>
-                  <div className="relative group">
+                <form onSubmit={handleSubmit} className="space-y-5">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
+                      <User className="w-3.5 h-3.5" /> Username (Wajib Smkn4pyk.com)
+                    </label>
                     <input
-                      type={showPassword ? 'text' : 'password'}
+                      type="text"
                       required
-                      pattern="[a-zA-Z0-9]+"
-                      title="Password hanya boleh berisi huruf dan angka (tanpa spasi atau simbol)."
-                      placeholder="••••••••"
-                      value={formData.password}
-                      onChange={handlePasswordChange}
-                      className="w-full pl-4 pr-12 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface placeholder:text-outline/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-medium shadow-sm"
+                      pattern=".*@smkn4pyk\.com$"
+                      title="Username wajib menyertakan domain '@smkn4pyk.com' di akhir kalimat."
+                      placeholder="Contoh: namaotoritas@smkn4pyk.com"
+                      value={formData.username}
+                      onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                      className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface placeholder:text-outline/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-medium shadow-sm"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center justify-between">
+                      <span className="flex items-center gap-1.5"><Key className="w-3.5 h-3.5" /> Password</span>
+                      <span className="text-[10px] text-outline tracking-normal font-medium lowercase">(Hanya kombinasi huruf dan angka, tanpa spasi)</span>
+                    </label>
+                    <div className="relative group">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        pattern="[a-zA-Z0-9]+"
+                        title="Password hanya boleh berisi huruf dan angka (tanpa spasi atau simbol)."
+                        placeholder="••••••••"
+                        value={formData.password}
+                        onChange={handlePasswordChange}
+                        className="w-full pl-4 pr-12 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface placeholder:text-outline/40 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-medium shadow-sm"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-outline hover:text-on-surface transition-colors cursor-pointer"
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5" /> Pilih Role Akses
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={formData.role_id}
+                        onChange={(e) => handleRoleChange(Number(e.target.value))}
+                        className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-bold shadow-sm appearance-none cursor-pointer"
+                      >
+                        {roleOptions.map((r) => (
+                          <option key={r.id} value={r.id}>{r.label}</option>
+                        ))}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-outline">
+                        <svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
+                      <Network className="w-4 h-4" /> Afiliasi Jurusan Kelolaan
+                    </label>
+                    <div className="relative">
+                      <select
+                        disabled={isGlobalRole(formData.role_id) || loadingJurusan}
+                        value={isGlobalRole(formData.role_id) ? '' : (formData.jurusan_id ?? '')}
+                        onChange={(e) => setFormData({ ...formData, jurusan_id: Number(e.target.value) })}
+                        className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-bold shadow-sm appearance-none cursor-pointer disabled:bg-surface-low disabled:text-outline disabled:cursor-not-allowed uppercase"
+                      >
+                        {isGlobalRole(formData.role_id) ? (
+                          <option value="">Semua Jurusan (Akses Global)</option>
+                        ) : (
+                          filteredJurusanList.map((j) => (
+                            <option key={j.id} value={j.id}>{j.nama_jurusan}</option>
+                          ))
+                        )}
+                      </select>
+                      <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-outline">
+                        {loadingJurusan ? (
+                          <span className="text-xs text-outline animate-pulse">Loading...</span>
+                        ) : (
+                          <svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-4 border-t border-surface-container">
                     <button
                       type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 pr-4 flex items-center text-outline hover:text-on-surface transition-colors cursor-pointer"
+                      disabled={isSubmitting}
+                      onClick={() => { setIsOpenModal(false); setShowPassword(false); }}
+                      className="px-5 py-2.5 text-base font-bold text-on-surface-variant hover:bg-surface-low rounded-xl transition-colors cursor-pointer disabled:opacity-50"
                     >
-                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="px-6 py-2.5 text-base font-bold text-white bg-primary hover:bg-primary-container active:scale-[0.98] transition-all rounded-xl shadow-sm cursor-pointer disabled:opacity-50"
+                    >
+                      {isSubmitting ? 'Menyimpan...' : 'Simpan Akun'}
                     </button>
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
-                    <Shield className="w-3.5 h-3.5" /> Pilih Role Akses
-                  </label>
-                  <div className="relative">
-                    <select
-                      value={formData.role_id}
-                      onChange={(e) => handleRoleChange(Number(e.target.value))}
-                      className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-bold shadow-sm appearance-none cursor-pointer"
-                    >
-                      {roleOptions.map((r) => (
-                        <option key={r.id} value={r.id}>{r.label}</option>
-                      ))}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-outline">
-                      <svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
-                    <Network className="w-4 h-4" /> Afiliasi Jurusan Kelolaan
-                  </label>
-                  <div className="relative">
-                    <select
-                      disabled={isGlobalRole(formData.role_id) || loadingJurusan}
-                      value={isGlobalRole(formData.role_id) ? '' : (formData.jurusan_id ?? '')}
-                      onChange={(e) => setFormData({ ...formData, jurusan_id: Number(e.target.value) })}
-                      className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-bold shadow-sm appearance-none cursor-pointer disabled:bg-surface-low disabled:text-outline disabled:cursor-not-allowed uppercase"
-                    >
-                      {isGlobalRole(formData.role_id) ? (
-                        <option value="">Semua Jurusan (Akses Global)</option>
-                      ) : (
-                        filteredJurusanList.map((j) => (
-                          <option key={j.id} value={j.id}>{j.nama_jurusan}</option>
-                        ))
-                      )}
-                    </select>
-                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-outline">
-                      {loadingJurusan ? (
-                        <span className="text-xs text-outline animate-pulse">Loading...</span>
-                      ) : (
-                        <svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3 pt-4 border-t border-surface-container">
-                  <button
-                    type="button"
-                    disabled={isSubmitting}
-                    onClick={() => { setIsOpenModal(false); setShowPassword(false); }}
-                    className="px-5 py-2.5 text-base font-bold text-on-surface-variant hover:bg-surface-low rounded-xl transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="px-6 py-2.5 text-base font-bold text-white bg-primary hover:bg-primary-container active:scale-[0.98] transition-all rounded-xl shadow-sm cursor-pointer disabled:opacity-50"
-                  >
-                    {isSubmitting ? 'Menyimpan...' : 'Simpan Akun'}
-                  </button>
-                </div>
-              </form>
+                </form>
+              </motion.div>
             </div>
-          </div>
-        )}
+          )}
+        </AnimatePresence>
       </div>
     </PageAnimateWrapper>
   );

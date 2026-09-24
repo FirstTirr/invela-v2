@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { History, X, Coins, CheckCircle2, Loader2, AlertCircle, Trash2, Wrench, Plus } from 'lucide-react';
+import { History, X, Coins, CheckCircle2, Loader2, AlertCircle, Trash2, Wrench, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   apiKerusakan, 
@@ -49,6 +49,10 @@ export default function KabengDamagesPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // State Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   // Form State untuk Modal Perbaikan
   const [deskripsiPerbaikan, setDeskripsiPerbaikan] = useState('');
@@ -121,6 +125,22 @@ export default function KabengDamagesPage() {
       isMounted = false;
     };
   }, [fetchData]);
+
+  // Reset Halaman Saat Jumlah Data Berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [damages.length, itemsPerPage]);
+
+  // Logic Pagination
+  const totalPages = Math.ceil(damages.length / itemsPerPage) || 1;
+  
+  const currentDamages = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return damages.slice(start, start + itemsPerPage);
+  }, [damages, currentPage, itemsPerPage]);
+
+  const startIndex = (currentPage - 1) * itemsPerPage + 1;
+  const endIndex = Math.min(currentPage * itemsPerPage, damages.length);
 
   // Handler Buka Modal Riwayat
   const handleOpenHistoryModal = async (report: ExtendedKerusakan) => {
@@ -289,102 +309,163 @@ export default function KabengDamagesPage() {
               </button>
             </div>
           ) : (
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-left border-collapse text-base min-w-[900px]">
-                <thead className="bg-surface-low border-b border-surface-container-high">
-                  <tr>
-                    <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase">Barang / Unit</th>
-                    <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase">Pelapor</th>
-                    <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase w-1/3 whitespace-normal">Rincian Kerusakan</th>
-                    <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase text-center">Status</th>
-                    <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase text-center">Tanggal</th>
-                    <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase text-right">Aksi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-container text-on-surface font-semibold">
-                  {damages.length === 0 ? (
+            <>
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left border-collapse text-base min-w-[900px]">
+                  <thead className="bg-surface-low border-b border-surface-container-high">
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-outline font-bold">
-                        Belum ada laporan kerusakan yang tercatat untuk jurusan ini.
-                      </td>
+                      <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase">Barang / Unit</th>
+                      <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase">Pelapor</th>
+                      <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase w-1/3 whitespace-normal">Rincian Kerusakan</th>
+                      <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase text-center">Status</th>
+                      <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase text-center">Tanggal</th>
+                      <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase text-right">Aksi</th>
                     </tr>
-                  ) : (
-                    damages.map((report) => {
-                      const itemInst = report.item_instance;
-                      const namaBarang = itemInst?.perangkat?.nama_perangkat || itemInst?.perangkat?.nama || 'Perangkat';
-                      const kodeUnit = itemInst?.kode_asset || itemInst?.kode_unit || `Unit #${report.id_item_instance}`;
-                      const namaPelapor = report.user?.name || report.user?.username || `User #${report.id_user}`;
-                      const isSelesai = report.status?.toLowerCase() === 'selesai';
+                  </thead>
+                  <tbody className="divide-y divide-surface-container text-on-surface font-semibold">
+                    {damages.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-outline font-bold">
+                          Belum ada laporan kerusakan yang tercatat untuk jurusan ini.
+                        </td>
+                      </tr>
+                    ) : (
+                      currentDamages.map((report) => {
+                        const itemInst = report.item_instance;
+                        const namaBarang = itemInst?.perangkat?.nama_perangkat || itemInst?.perangkat?.nama || 'Perangkat';
+                        const kodeUnit = itemInst?.kode_asset || itemInst?.kode_unit || `Unit #${report.id_item_instance}`;
+                        const namaPelapor = report.user?.name || report.user?.username || `User #${report.id_user}`;
+                        const isSelesai = report.status?.toLowerCase() === 'selesai';
 
-                      return (
-                        <tr key={report.id} className="hover:bg-surface-low/30 transition-colors">
-                          <td className="p-5 text-base font-bold text-error whitespace-nowrap">
-                            {namaBarang} <span className="text-xs font-mono text-outline font-normal block">{kodeUnit}</span>
-                          </td>
-                          <td className="p-5 text-base text-on-surface-variant font-bold whitespace-nowrap">{namaPelapor}</td>
-                          <td className="p-5 text-base leading-relaxed whitespace-normal min-w-[280px] font-medium text-on-surface">
-                            {report.deskripsi}
-                          </td>
-                          <td className="p-5 text-center whitespace-nowrap">
-                            <span className={`px-3 py-1 text-xs font-bold rounded-full capitalize ${
-                              isSelesai 
-                                ? 'bg-green-100 text-green-700' 
-                                : report.status === 'sedang diperbaiki'
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'bg-red-100 text-red-700'
-                            }`}>
-                              {report.status}
-                            </span>
-                          </td>
-                          <td className="p-5 text-center font-mono text-sm text-outline tabular-nums whitespace-nowrap">
-                            {formatDate(report.created_at)}
-                          </td>
-                          <td className="p-5 text-right space-x-2 whitespace-nowrap">
-                            <button 
-                              type="button"
-                              onClick={() => handleOpenHistoryModal(report)}
-                              className="px-3 py-2 text-sm font-bold text-secondary hover:bg-surface-low border border-surface-container-high rounded-lg transition-all inline-flex items-center gap-1.5 cursor-pointer"
-                            >
-                              <History className="w-4 h-4" /> Riwayat
-                            </button>
-                            <button 
-                              type="button"
-                              onClick={() => { 
-                                setSelectedReport(report); 
-                                setDeskripsiPerbaikan('');
-                                setBiayaPerbaikan('');
-                                setIsOpenRepairModal(true); 
-                              }}
-                              disabled={isSelesai}
-                              className={`px-3 py-2 text-sm font-bold rounded-lg transition-all inline-flex items-center gap-1.5 ${
+                        return (
+                          <tr key={report.id} className="hover:bg-surface-low/30 transition-colors">
+                            <td className="p-5 text-base font-bold text-error whitespace-nowrap">
+                              {namaBarang} <span className="text-xs font-mono text-outline font-normal block">{kodeUnit}</span>
+                            </td>
+                            <td className="p-5 text-base text-on-surface-variant font-bold whitespace-nowrap">{namaPelapor}</td>
+                            <td className="p-5 text-base leading-relaxed whitespace-normal min-w-[280px] font-medium text-on-surface">
+                              {report.deskripsi}
+                            </td>
+                            <td className="p-5 text-center whitespace-nowrap">
+                              <span className={`px-3 py-1 text-xs font-bold rounded-full capitalize ${
                                 isSelesai 
-                                  ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60' 
-                                  : 'text-white bg-primary hover:bg-primary-container cursor-pointer shadow-xs'
-                              }`}
-                            >
-                              <Wrench className="w-4 h-4" /> Perbaikan
-                            </button>
-                            <button 
-                              type="button"
-                              onClick={() => handleDelete(report.id)}
-                              disabled={deletingId === report.id}
-                              className="p-2 text-sm font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-all inline-flex items-center justify-center cursor-pointer disabled:opacity-50"
-                              title="Hapus Laporan Kerusakan"
-                            >
-                              {deletingId === report.id ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                <Trash2 className="w-4 h-4" />
-                              )}
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                                  ? 'bg-green-100 text-green-700' 
+                                  : report.status === 'sedang diperbaiki'
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-red-100 text-red-700'
+                              }`}>
+                                {report.status}
+                              </span>
+                            </td>
+                            <td className="p-5 text-center font-mono text-sm text-outline tabular-nums whitespace-nowrap">
+                              {formatDate(report.created_at)}
+                            </td>
+                            <td className="p-5 text-right space-x-2 whitespace-nowrap">
+                              <button 
+                                type="button"
+                                onClick={() => handleOpenHistoryModal(report)}
+                                className="px-3 py-2 text-sm font-bold text-secondary hover:bg-surface-low border border-surface-container-high rounded-lg transition-all inline-flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <History className="w-4 h-4" /> Riwayat
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => { 
+                                  setSelectedReport(report); 
+                                  setDeskripsiPerbaikan('');
+                                  setBiayaPerbaikan('');
+                                  setIsOpenRepairModal(true); 
+                                }}
+                                disabled={isSelesai}
+                                className={`px-3 py-2 text-sm font-bold rounded-lg transition-all inline-flex items-center gap-1.5 ${
+                                  isSelesai 
+                                    ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60' 
+                                    : 'text-white bg-primary hover:bg-primary-container cursor-pointer shadow-xs'
+                                }`}
+                              >
+                                <Wrench className="w-4 h-4" /> Perbaikan
+                              </button>
+                              <button 
+                                type="button"
+                                onClick={() => handleDelete(report.id)}
+                                disabled={deletingId === report.id}
+                                className="p-2 text-sm font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-all inline-flex items-center justify-center cursor-pointer disabled:opacity-50"
+                                title="Hapus Laporan Kerusakan"
+                              >
+                                {deletingId === report.id ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4" />
+                                )}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* BAR PAGINATION */}
+              {damages.length > 0 && (
+                <div className="p-4 border-t border-surface-container-high bg-surface-low/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 text-xs font-semibold text-outline">
+                    <span>
+                      Menampilkan {startIndex} - {endIndex} dari {damages.length} data
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span>Per halaman:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                        className="bg-white border border-surface-container-high rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer font-bold"
+                      >
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="p-2 border border-surface-container-high rounded-lg text-on-surface hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+                    
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
+                          currentPage === page
+                            ? 'bg-primary text-white border-primary shadow-xs'
+                            : 'bg-white border-surface-container-high text-on-surface hover:bg-surface-low'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="p-2 border border-surface-container-high rounded-lg text-on-surface hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 

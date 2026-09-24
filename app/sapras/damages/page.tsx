@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { History, X, Coins, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { History, X, Coins, CheckCircle2, Loader2, AlertCircle, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { apiKerusakan, apiRiwayatPerbaikan, Kerusakan, RiwayatPerbaikan } from '@/lib/api';
 
@@ -28,6 +28,14 @@ export default function SaprasDamagesPage() {
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
+  // State Pencarian dan Filter Status
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('semua');
+
+  // State Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
   const fetchData = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -49,8 +57,6 @@ export default function SaprasDamagesPage() {
   }, []);
 
   useEffect(() => {
-    // Membungkus pemanggilan fetchData dengan requestAnimationFrame untuk 
-    // mencegah synchronous setState di dalam efek yang memicu cascading renders.
     const timer = requestAnimationFrame(() => {
       fetchData();
     });
@@ -96,6 +102,46 @@ export default function SaprasDamagesPage() {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(amount);
   };
 
+  // Filter Data berdasarkan Pencarian & Status
+  const filteredDamages = useMemo(() => {
+    return damages.filter((report) => {
+      const itemInst = report.item_instance as ExtendedItemInstance | undefined;
+      const namaBarang = itemInst?.perangkat?.nama_perangkat || itemInst?.perangkat?.nama || '';
+      const kodeUnit = itemInst?.kode_asset || itemInst?.kode_unit || `Unit #${report.id_item_instance}`;
+      const namaPelapor = report.user?.name || report.user?.username || report.user?.email || `User #${report.id_user}`;
+      const deskripsi = report.deskripsi || '';
+
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = 
+        namaBarang.toLowerCase().includes(query) ||
+        kodeUnit.toLowerCase().includes(query) ||
+        namaPelapor.toLowerCase().includes(query) ||
+        deskripsi.toLowerCase().includes(query);
+
+      const matchesStatus = 
+        selectedStatus === 'semua' || 
+        (report.status || '').toLowerCase() === selectedStatus.toLowerCase();
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [damages, searchQuery, selectedStatus]);
+
+  // Reset Halaman ke 1 saat filter atau pencarian berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedStatus, itemsPerPage]);
+
+  // Kalkulasi Pagination
+  const totalPages = Math.ceil(filteredDamages.length / itemsPerPage) || 1;
+
+  const currentDamages = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredDamages.slice(start, start + itemsPerPage);
+  }, [filteredDamages, currentPage, itemsPerPage]);
+
+  const startIndex = (currentPage - 1) * itemsPerPage + 1;
+  const endIndex = Math.min(currentPage * itemsPerPage, filteredDamages.length);
+
   return (
     <PageAnimateWrapper>
       <div className="space-y-8 font-sans antialiased tracking-tight">
@@ -135,8 +181,35 @@ export default function SaprasDamagesPage() {
           </div>
         </div>
 
+        {/* Filter & Search Bar */}
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border border-surface-container-high shadow-xs">
+          <div className="relative w-full sm:w-80">
+            <Search className="w-4 h-4 text-outline absolute left-3 top-1/2 -translate-y-1/2" />
+            <input 
+              type="text" 
+              placeholder="Cari barang, kode, pelapor..." 
+              value={searchQuery} 
+              onChange={(e) => setSearchQuery(e.target.value)} 
+              className="w-full pl-9 pr-4 py-2 text-sm border border-surface-container rounded-lg focus:outline-none focus:border-primary font-medium" 
+            />
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <Filter className="w-4 h-4 text-outline shrink-0" />
+            <select 
+              value={selectedStatus} 
+              onChange={(e) => setSelectedStatus(e.target.value)} 
+              className="w-full sm:w-auto px-3 py-2 text-sm border border-surface-container rounded-lg focus:outline-none focus:border-primary bg-white font-medium text-on-surface cursor-pointer"
+            >
+              <option value="semua">Semua Status</option>
+              <option value="rusak">Rusak</option>
+              <option value="sedang diperbaiki">Sedang Diperbaiki</option>
+              <option value="selesai">Selesai</option>
+            </select>
+          </div>
+        </div>
+
         {/* Damages Table */}
-        <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-xs">
+        <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-xs space-y-3">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-16 space-y-3">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -146,67 +219,132 @@ export default function SaprasDamagesPage() {
             <div className="p-8 text-center space-y-3">
               <AlertCircle className="w-10 h-10 text-error mx-auto" />
               <p className="text-base font-bold text-error">{errorMsg}</p>
-              <button onClick={fetchData} className="px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg">Coba Lagi</button>
+              <button onClick={fetchData} className="px-4 py-2 text-sm font-bold text-white bg-primary rounded-lg cursor-pointer">Coba Lagi</button>
             </div>
           ) : (
-            <div className="overflow-x-auto w-full">
-              <table className="w-full text-left border-collapse text-base min-w-[900px]">
-                <thead className="bg-surface-low border-b border-surface-container-high">
-                  <tr>
-                    <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Nama Barang</th>
-                    <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Pelapor</th>
-                    <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider w-1/3">Detail Kerusakan</th>
-                    <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider text-center">Status Aset</th>
-                    <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider text-center">Tanggal Lapor</th>
-                    <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider text-right">Log Audit</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-surface-container text-on-surface font-medium">
-                  {damages.length === 0 ? (
+            <>
+              <div className="overflow-x-auto w-full">
+                <table className="w-full text-left border-collapse text-base min-w-[900px]">
+                  <thead className="bg-surface-low border-b border-surface-container-high">
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-outline font-bold">
-                        Belum ada laporan kerusakan.
-                      </td>
+                      <th className="p-4 text-xs font-bold uppercase w-12 text-center text-on-surface">No</th>
+                      <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Nama Barang</th>
+                      <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider">Pelapor</th>
+                      <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider w-1/3">Detail Kerusakan</th>
+                      <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider text-center">Status Aset</th>
+                      <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider text-center">Tanggal Lapor</th>
+                      <th className="p-5 text-sm font-bold text-on-surface uppercase tracking-wider text-right">Log Audit</th>
                     </tr>
-                  ) : (
-                    damages.map((report) => {
-                      const itemInst = report.item_instance as ExtendedItemInstance | undefined;
-                      const namaBarang = itemInst?.perangkat?.nama_perangkat || itemInst?.perangkat?.nama || 'Perangkat';
-                      const kodeUnit = itemInst?.kode_asset || itemInst?.kode_unit || `Unit #${report.id_item_instance}`;
-                      const namaPelapor = report.user?.name || report.user?.username || report.user?.email || `User #${report.id_user}`;
+                  </thead>
+                  <tbody className="divide-y divide-surface-container text-on-surface font-medium">
+                    {filteredDamages.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-outline font-bold">
+                          Tidak ditemukan laporan kerusakan.
+                        </td>
+                      </tr>
+                    ) : (
+                      currentDamages.map((report, idx) => {
+                        const itemInst = report.item_instance as ExtendedItemInstance | undefined;
+                        const namaBarang = itemInst?.perangkat?.nama_perangkat || itemInst?.perangkat?.nama || 'Perangkat';
+                        const kodeUnit = itemInst?.kode_asset || itemInst?.kode_unit || `Unit #${report.id_item_instance}`;
+                        const namaPelapor = report.user?.name || report.user?.username || report.user?.email || `User #${report.id_user}`;
 
-                      return (
-                        <tr key={report.id} className="hover:bg-surface-low/30 transition-colors">
-                          <td className="p-5 text-base font-bold text-error">
-                            {namaBarang} <span className="text-xs font-mono text-outline font-normal block">{kodeUnit}</span>
-                          </td>
-                          <td className="p-5 text-base text-on-surface-variant font-bold">{namaPelapor}</td>
-                          <td className="p-5 text-base leading-relaxed">{report.deskripsi}</td>
-                          <td className="p-5 text-center">
-                            <span className={`inline-block px-3 py-1 rounded-md text-sm font-bold capitalize ${
-                              report.status === 'selesai' ? 'bg-green-100 text-green-900 border border-green-300' :
-                              report.status === 'sedang diperbaiki' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                              'bg-red-100 text-red-900 border border-red-300'
-                            }`}>
-                              {report.status}
-                            </span>
-                          </td>
-                          <td className="p-5 text-center font-mono text-base text-outline tabular-nums">{formatDate(report.created_at)}</td>
-                          <td className="p-5 text-right">
-                            <button 
-                              onClick={() => handleOpenHistoryModal(report)}
-                              className="px-4 py-2 text-sm font-bold text-primary hover:bg-secondary-container border border-primary rounded-lg transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs"
-                            >
-                              <History className="w-4 h-4" /> Cek Riwayat
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                        return (
+                          <tr key={report.id} className="hover:bg-surface-low/30 transition-colors">
+                            <td className="p-4 text-center text-outline font-mono text-xs font-bold">
+                              {(currentPage - 1) * itemsPerPage + idx + 1}
+                            </td>
+                            <td className="p-5 text-base font-bold text-error">
+                              {namaBarang} <span className="text-xs font-mono text-outline font-normal block">{kodeUnit}</span>
+                            </td>
+                            <td className="p-5 text-base text-on-surface-variant font-bold">{namaPelapor}</td>
+                            <td className="p-5 text-base leading-relaxed">{report.deskripsi}</td>
+                            <td className="p-5 text-center">
+                              <span className={`inline-block px-3 py-1 rounded-md text-sm font-bold capitalize ${
+                                report.status === 'selesai' ? 'bg-green-100 text-green-900 border border-green-300' :
+                                report.status === 'sedang diperbaiki' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                                'bg-red-100 text-red-900 border border-red-300'
+                              }`}>
+                                {report.status}
+                              </span>
+                            </td>
+                            <td className="p-5 text-center font-mono text-base text-outline tabular-nums">{formatDate(report.created_at)}</td>
+                            <td className="p-5 text-right">
+                              <button 
+                                onClick={() => handleOpenHistoryModal(report)}
+                                className="px-4 py-2 text-sm font-bold text-primary hover:bg-secondary-container border border-primary rounded-lg transition-all inline-flex items-center gap-2 cursor-pointer shadow-xs"
+                              >
+                                <History className="w-4 h-4" /> Cek Riwayat
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Bar Navigation Pagination */}
+              {filteredDamages.length > 0 && (
+                <div className="p-4 border-t border-surface-container-high bg-surface-low/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 text-xs font-semibold text-outline">
+                    <span>
+                      Menampilkan {startIndex} - {endIndex} dari {filteredDamages.length} entri
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <span>Per halaman:</span>
+                      <select
+                        value={itemsPerPage}
+                        onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                        className="bg-white border border-surface-container-high rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer font-bold"
+                      >
+                        <option value={5}>5</option>
+                        <option value={10}>10</option>
+                        <option value={20}>20</option>
+                        <option value={50}>50</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                      disabled={currentPage === 1}
+                      className="p-2 border border-surface-container-high rounded-lg text-on-surface hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                    </button>
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      <button
+                        key={page}
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
+                          currentPage === page
+                            ? 'bg-primary text-white border-primary shadow-xs'
+                            : 'bg-white border-surface-container-high text-on-surface hover:bg-surface-low'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    ))}
+
+                    <button
+                      type="button"
+                      onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                      disabled={currentPage === totalPages}
+                      className="p-2 border border-surface-container-high rounded-lg text-on-surface hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
 

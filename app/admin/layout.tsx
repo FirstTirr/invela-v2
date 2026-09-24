@@ -215,7 +215,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const mainNavItems = [
     { label: 'Dashboard Overview', href: '/admin', icon: LayoutDashboard },
     { label: 'Memantau Akun', href: '/admin/users', icon: UserCheck },
-    { label: 'Input Data Master', href: '/admin/master', icon: FilePlus },
+    { label: 'Input Data Sekolah', href: '/admin/master', icon: FilePlus },
   ];
 
   const sidebarProps = {

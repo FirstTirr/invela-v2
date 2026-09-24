@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { Plus, Loader2, CheckCircle, History } from 'lucide-react';
+import { Plus, Loader2, CheckCircle, History, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AnimatePresence } from 'framer-motion';
 import Link from 'next/link';
 import { apiPeminjaman, Peminjaman, CreatePeminjamanInput } from '@/lib/api';
@@ -28,6 +28,11 @@ export default function KabengLoansPage() {
   const [loading, setLoading] = useState(false);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [loans, setLoans] = useState<PeminjamanItem[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // State Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const fetchLoans = useCallback(async () => {
     try {
@@ -97,6 +102,44 @@ export default function KabengLoansPage() {
     };
   }, []);
 
+  // Filter berdasarkan pencarian
+  const filteredLoans = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return loans;
+
+    return loans.filter((loan) => {
+      const namaBarang = loan.item_instance?.perangkat?.nama_perangkat?.toLowerCase() || '';
+      const kodeAsset = loan.item_instance?.kode_asset?.toLowerCase() || '';
+      const peminjam = loan.nama_peminjam?.toLowerCase() || '';
+      const kelas = loan.kelas?.toLowerCase() || '';
+      const telepon = loan.nomor_telepon?.toLowerCase() || '';
+
+      return (
+        namaBarang.includes(q) ||
+        kodeAsset.includes(q) ||
+        peminjam.includes(q) ||
+        kelas.includes(q) ||
+        telepon.includes(q)
+      );
+    });
+  }, [loans, searchQuery]);
+
+  // Reset halaman aktif saat terjadi perubahan pencarian atau limit per halaman
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
+
+  // Perhitungan Pagination
+  const totalPages = Math.ceil(filteredLoans.length / itemsPerPage) || 1;
+
+  const currentLoans = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredLoans.slice(start, start + itemsPerPage);
+  }, [filteredLoans, currentPage, itemsPerPage]);
+
+  const startIndex = (currentPage - 1) * itemsPerPage + 1;
+  const endIndex = Math.min(currentPage * itemsPerPage, filteredLoans.length);
+
   const handleMarkAsDone = async (loan: PeminjamanItem) => {
     if (!confirm(`Apakah barang peminjaman "${loan.nama_peminjam}" sudah dikembalikan?`)) return;
     try {
@@ -153,52 +196,81 @@ export default function KabengLoansPage() {
             </p>
           </div>
           <div className="flex items-center gap-3 w-full sm:w-auto">
-            <Link href="/kabeng/loans/completed" className="px-4 py-2.5 text-sm font-bold border border-surface-container-high rounded-lg flex items-center justify-center gap-2">
+            <Link href="/kabeng/loans/completed" className="px-4 py-2.5 text-sm font-bold border border-surface-container-high rounded-lg flex items-center justify-center gap-2 hover:bg-surface-low transition-colors">
               <History className="w-4 h-4" /> Riwayat Selesai
             </Link>
-            <button onClick={() => setIsOpenModal(true)} className="px-5 py-2.5 text-sm font-bold text-white bg-primary rounded-lg flex items-center justify-center gap-2 shadow-sm cursor-pointer">
+            <button onClick={() => setIsOpenModal(true)} className="px-5 py-2.5 text-sm font-bold text-white bg-primary rounded-lg flex items-center justify-center gap-2 shadow-xs cursor-pointer hover:bg-primary-container transition-colors">
               <Plus className="w-5 h-5" /> Input Peminjaman Baru
             </button>
           </div>
         </div>
 
+        {/* Filter & Search Bar */}
+        <div className="bg-white border border-surface-container-high rounded-xl p-4 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-md w-full">
+            <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+            <input
+              type="text"
+              placeholder="Cari nama barang, peminjam, kelas, atau kode asset..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-surface-container-high rounded-lg text-sm focus:outline-none focus:border-primary font-medium"
+            />
+          </div>
+          <div className="text-right w-full md:w-auto text-xs font-bold text-outline uppercase">
+            Total Peminjaman Aktif: <span className="text-sm font-black text-primary">{filteredLoans.length}</span>
+          </div>
+        </div>
+
         {/* Tabel Log Peminjaman */}
-        <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-sm w-full">
+        <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-xs w-full">
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left border-collapse text-base min-w-[850px]">
               <thead className="bg-surface-low border-b border-surface-container-high">
                 <tr>
-                  <th className="p-5 text-sm font-bold text-on-surface uppercase">Nama Barang</th>
-                  <th className="p-5 text-sm font-bold text-on-surface uppercase">Kode Asset</th>
-                  <th className="p-5 text-sm font-bold text-on-surface uppercase">Peminjam</th>
-                  <th className="p-5 text-sm font-bold text-on-surface uppercase">Kelas</th>
-                  <th className="p-5 text-sm font-bold text-on-surface uppercase text-center">Tgl Mulai</th>
-                  <th className="p-5 text-sm font-bold text-on-surface uppercase text-center">Tgl Selesai</th>
-                  <th className="p-5 text-sm font-bold text-on-surface uppercase text-center">Aksi / Status</th>
+                  <th className="p-4 text-xs font-bold text-on-surface uppercase text-center w-12">No</th>
+                  <th className="p-4 text-xs font-bold text-on-surface uppercase">Nama Barang</th>
+                  <th className="p-4 text-xs font-bold text-on-surface uppercase">Kode Asset</th>
+                  <th className="p-4 text-xs font-bold text-on-surface uppercase">Peminjam</th>
+                  <th className="p-4 text-xs font-bold text-on-surface uppercase">Kelas</th>
+                  <th className="p-4 text-xs font-bold text-on-surface uppercase text-center">Tgl Mulai</th>
+                  <th className="p-4 text-xs font-bold text-on-surface uppercase text-center">Tgl Selesai</th>
+                  <th className="p-4 text-xs font-bold text-on-surface uppercase text-center">Aksi / Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-container font-semibold">
+              <tbody className="divide-y divide-surface-container font-semibold text-sm">
                 {loading ? (
-                  <tr><td colSpan={7} className="p-8 text-center text-outline"><Loader2 className="w-6 h-6 animate-spin inline-block mr-2" /> Memuat...</td></tr>
-                ) : loans.length === 0 ? (
-                  <tr><td colSpan={7} className="p-8 text-center text-outline">Tidak ada peminjaman aktif.</td></tr>
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center text-outline">
+                      <Loader2 className="w-6 h-6 animate-spin inline-block mr-2" /> Memuat data...
+                    </td>
+                  </tr>
+                ) : filteredLoans.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="p-8 text-center text-outline">
+                      Tidak ada peminjaman aktif ditemukan.
+                    </td>
+                  </tr>
                 ) : (
-                  loans.map((loan) => (
+                  currentLoans.map((loan, idx) => (
                     <tr key={loan.id} className="hover:bg-surface-low/30">
-                      <td className="p-5 font-bold text-primary">{loan.item_instance?.perangkat?.nama_perangkat || '-'}</td>
-                      <td className="p-5 font-mono text-sm text-outline">{loan.item_instance?.kode_asset || '-'}</td>
-                      <td className="p-5">
+                      <td className="p-4 text-center text-outline font-mono text-xs">
+                        {(currentPage - 1) * itemsPerPage + idx + 1}
+                      </td>
+                      <td className="p-4 font-bold text-primary">{loan.item_instance?.perangkat?.nama_perangkat || '-'}</td>
+                      <td className="p-4 font-mono text-xs text-outline">{loan.item_instance?.kode_asset || '-'}</td>
+                      <td className="p-4">
                         {loan.nama_peminjam}
                         <span className="block text-xs text-outline font-normal">{loan.nomor_telepon}</span>
                       </td>
-                      <td className="p-5">{loan.kelas || '-'}</td>
-                      <td className="p-5 text-center font-mono text-outline">{formatDateDisplay(loan.tanggal_pinjam)}</td>
-                      <td className="p-5 text-center font-mono text-outline">{formatDateDisplay(loan.tanggal_kembali)}</td>
-                      <td className="p-5 text-center">
+                      <td className="p-4">{loan.kelas || '-'}</td>
+                      <td className="p-4 text-center font-mono text-outline text-xs">{formatDateDisplay(loan.tanggal_pinjam)}</td>
+                      <td className="p-4 text-center font-mono text-outline text-xs">{formatDateDisplay(loan.tanggal_kembali)}</td>
+                      <td className="p-4 text-center">
                         <button
                           onClick={() => handleMarkAsDone(loan)}
                           disabled={updatingId === loan.id}
-                          className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer transition-colors ${
                             loan.status === 'melewati batas waktu' 
                               ? 'bg-red-50 text-red-800 border-red-300 hover:bg-red-100' 
                               : 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-emerald-100 hover:text-emerald-900'
@@ -220,6 +292,65 @@ export default function KabengLoansPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Bar Navigation Pagination */}
+          {!loading && filteredLoans.length > 0 && (
+            <div className="p-4 border-t border-surface-container-high bg-surface-low/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4 text-xs font-semibold text-outline">
+                <span>
+                  Menampilkan {startIndex} - {endIndex} dari {filteredLoans.length} peminjaman
+                </span>
+                <div className="flex items-center gap-2">
+                  <span>Per halaman:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    className="bg-white border border-surface-container-high rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer font-bold"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 border border-surface-container-high rounded-lg text-on-surface hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
+                      currentPage === page
+                        ? 'bg-primary text-white border-primary shadow-xs'
+                        : 'bg-white border-surface-container-high text-on-surface hover:bg-surface-low'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 border border-surface-container-high rounded-lg text-on-surface hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Modal Form */}

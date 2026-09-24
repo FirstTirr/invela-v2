@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { ArrowLeft, History, Loader2, FileSpreadsheet, Printer, X, FileCheck } from 'lucide-react';
+import { ArrowLeft, History, Loader2, FileSpreadsheet, Printer, X, FileCheck, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -36,6 +36,11 @@ export default function KabengCompletedLoansPage() {
   const [loans, setLoans] = useState<PeminjamanItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [userJurusanName, setUserJurusanName] = useState<string>("-");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  // State Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
 
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [pdfSignData, setPdfSignData] = useState({ jabatan: "Kepala Bengkel", nama: "", nip: "-" });
@@ -93,7 +98,6 @@ export default function KabengCompletedLoansPage() {
         }
       } catch (err: unknown) {
         console.error("Gagal memuat riwayat peminjaman:", err);
-        // Safe check
       } finally {
         if (isMounted) {
           setLoading(false);
@@ -122,9 +126,45 @@ export default function KabengCompletedLoansPage() {
     return formatDate(rawDate);
   };
 
+  // Filter pencarian real-time
+  const filteredLoans = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return loans;
+
+    return loans.filter((loan) => {
+      const namaBarang = loan.item_instance?.perangkat?.nama_perangkat?.toLowerCase() || '';
+      const kodeAsset = loan.item_instance?.kode_asset?.toLowerCase() || '';
+      const peminjam = loan.nama_peminjam?.toLowerCase() || '';
+      const telepon = loan.nomor_telepon?.toLowerCase() || '';
+
+      return (
+        namaBarang.includes(q) ||
+        kodeAsset.includes(q) ||
+        peminjam.includes(q) ||
+        telepon.includes(q)
+      );
+    });
+  }, [loans, searchQuery]);
+
+  // Reset Halaman Aktif ketika pencarian atau limit per halaman berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
+
+  // Perhitungan Pagination
+  const totalPages = Math.ceil(filteredLoans.length / itemsPerPage) || 1;
+
+  const currentLoans = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredLoans.slice(start, start + itemsPerPage);
+  }, [filteredLoans, currentPage, itemsPerPage]);
+
+  const startIndex = (currentPage - 1) * itemsPerPage + 1;
+  const endIndex = Math.min(currentPage * itemsPerPage, filteredLoans.length);
+
   const handleExportCSV = () => {
-    if (loans.length === 0) return alert("Tidak ada data untuk diexport.");
-    const excelData = loans.map((loan, index) => ({
+    if (filteredLoans.length === 0) return alert("Tidak ada data untuk diexport.");
+    const excelData = filteredLoans.map((loan, index) => ({
       No: index + 1,
       "Nama Barang": loan.item_instance?.perangkat?.nama_perangkat || "Tidak Diketahui",
       "Kode Asset": loan.item_instance?.kode_asset || "-",
@@ -159,7 +199,7 @@ export default function KabengCompletedLoansPage() {
     autoTable(doc, {
       startY: 96,
       head: [["NO", "NAMA BARANG", "KODE ASSET", "PEMINJAM", "NO TELEPON", "TGL MULAI", "TGL KEMBALI"]],
-      body: loans.map((loan, idx) => [
+      body: filteredLoans.map((loan, idx) => [
         idx + 1,
         loan.item_instance?.perangkat?.nama_perangkat || "Tidak Diketahui",
         loan.item_instance?.kode_asset || "-",
@@ -178,8 +218,8 @@ export default function KabengCompletedLoansPage() {
       styles: { fontSize: 8, cellPadding: 6 },
     });
 
-    const totalPages = doc.getNumberOfPages();
-    doc.setPage(totalPages);
+    const totalPagesPDF = doc.getNumberOfPages();
+    doc.setPage(totalPagesPDF);
 
     const signX = 40; 
     const signY = ph - 110; 
@@ -225,7 +265,7 @@ export default function KabengCompletedLoansPage() {
             </button>
             <button 
               type="button"
-              onClick={() => { if (loans.length === 0) return alert("Tidak ada data."); setIsPdfModalOpen(true); }} 
+              onClick={() => { if (filteredLoans.length === 0) return alert("Tidak ada data."); setIsPdfModalOpen(true); }} 
               className="px-4 py-2 bg-primary hover:bg-primary-container text-white font-bold text-sm rounded-xl flex items-center gap-2 shadow-xs cursor-pointer"
             >
               <Printer className="w-4 h-4" /> Export PDF
@@ -233,46 +273,68 @@ export default function KabengCompletedLoansPage() {
           </div>
         </div>
 
+        {/* Filter & Search Bar */}
+        <div className="bg-white border border-surface-container-high rounded-xl p-4 shadow-xs flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="relative flex-1 max-w-md w-full">
+            <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-outline" />
+            <input
+              type="text"
+              placeholder="Cari nama barang, kode asset, atau peminjam..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-surface-container-high rounded-lg text-sm focus:outline-none focus:border-primary font-medium"
+            />
+          </div>
+          <div className="text-right w-full md:w-auto text-xs font-bold text-outline uppercase">
+            Total Selesai: <span className="text-sm font-black text-emerald-700">{filteredLoans.length}</span>
+          </div>
+        </div>
+
+        {/* Tabel Riwayat Peminjaman Selesai */}
         <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-xs w-full">
           <div className="overflow-x-auto w-full">
             <table className="w-full text-left border-collapse text-base min-w-[700px]">
               <thead className="bg-surface-low border-b border-surface-container-high">
                 <tr>
-                  <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase">Nama Barang</th>
-                  <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase">Kode Asset</th>
-                  <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase">Nama Peminjam</th>
-                  <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase text-center">Tgl Mulai</th>
-                  <th className="p-5 text-sm font-bold text-on-surface tracking-wide uppercase text-center">Tgl Pengembalian</th>
+                  <th className="p-4 text-xs font-bold text-on-surface uppercase text-center w-12">No</th>
+                  <th className="p-4 text-xs font-bold text-on-surface tracking-wide uppercase">Nama Barang</th>
+                  <th className="p-4 text-xs font-bold text-on-surface tracking-wide uppercase">Kode Asset</th>
+                  <th className="p-4 text-xs font-bold text-on-surface tracking-wide uppercase">Nama Peminjam</th>
+                  <th className="p-4 text-xs font-bold text-on-surface tracking-wide uppercase text-center">Tgl Mulai</th>
+                  <th className="p-4 text-xs font-bold text-on-surface tracking-wide uppercase text-center">Tgl Pengembalian</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-surface-container text-on-surface font-semibold">
+              <tbody className="divide-y divide-surface-container text-on-surface font-semibold text-sm">
                 {loading ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-outline">
+                    <td colSpan={6} className="p-8 text-center text-outline">
                       <Loader2 className="w-6 h-6 animate-spin inline-block mr-2" /> Memuat riwayat...
                     </td>
                   </tr>
-                ) : loans.length === 0 ? (
+                ) : filteredLoans.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-8 text-center text-outline font-medium">
-                      Belum ada riwayat peminjaman yang selesai untuk jurusan ini.
+                    <td colSpan={6} className="p-8 text-center text-outline font-medium">
+                      Belum ada riwayat peminjaman yang selesai ditemukan.
                     </td>
                   </tr>
                 ) : (
-                  loans.map((loan) => {
+                  currentLoans.map((loan, idx) => {
                     const namaBarang = loan.item_instance?.perangkat?.nama_perangkat || 'Tidak Diketahui';
                     const kodeAsset = loan.item_instance?.kode_asset || '-';
 
                     return (
                       <tr key={loan.id} className="hover:bg-surface-low/30 transition-colors">
-                        <td className="p-5 text-base font-bold text-primary whitespace-nowrap">{namaBarang}</td>
-                        <td className="p-5 font-mono text-sm text-outline font-bold whitespace-nowrap">{kodeAsset}</td>
-                        <td className="p-5 text-base text-on-surface-variant font-bold whitespace-nowrap">
+                        <td className="p-4 text-center text-outline font-mono text-xs">
+                          {(currentPage - 1) * itemsPerPage + idx + 1}
+                        </td>
+                        <td className="p-4 font-bold text-primary whitespace-nowrap">{namaBarang}</td>
+                        <td className="p-4 font-mono text-xs text-outline font-bold whitespace-nowrap">{kodeAsset}</td>
+                        <td className="p-4 font-bold whitespace-nowrap">
                           {loan.nama_peminjam}
                           <span className="block text-xs text-outline font-normal">{loan.nomor_telepon}</span>
                         </td>
-                        <td className="p-5 text-center font-mono text-base text-outline tabular-nums whitespace-nowrap">{formatDate(loan.tanggal_pinjam)}</td>
-                        <td className="p-5 text-center font-mono text-base text-outline tabular-nums whitespace-nowrap">{getReturnDate(loan)}</td>
+                        <td className="p-4 text-center font-mono text-xs text-outline tabular-nums whitespace-nowrap">{formatDate(loan.tanggal_pinjam)}</td>
+                        <td className="p-4 text-center font-mono text-xs text-outline tabular-nums whitespace-nowrap">{getReturnDate(loan)}</td>
                       </tr>
                     );
                   })
@@ -280,6 +342,65 @@ export default function KabengCompletedLoansPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Bar Navigation Pagination */}
+          {!loading && filteredLoans.length > 0 && (
+            <div className="p-4 border-t border-surface-container-high bg-surface-low/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4 text-xs font-semibold text-outline">
+                <span>
+                  Menampilkan {startIndex} - {endIndex} dari {filteredLoans.length} riwayat
+                </span>
+                <div className="flex items-center gap-2">
+                  <span>Per halaman:</span>
+                  <select
+                    value={itemsPerPage}
+                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    className="bg-white border border-surface-container-high rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer font-bold"
+                  >
+                    <option value={5}>5</option>
+                    <option value={10}>10</option>
+                    <option value={20}>20</option>
+                    <option value={50}>50</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 border border-surface-container-high rounded-lg text-on-surface hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => setCurrentPage(page)}
+                    className={`w-8 h-8 text-xs font-bold rounded-lg border transition-colors cursor-pointer ${
+                      currentPage === page
+                        ? 'bg-primary text-white border-primary shadow-xs'
+                        : 'bg-white border-surface-container-high text-on-surface hover:bg-surface-low'
+                    }`}
+                  >
+                    {page}
+                  </button>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 border border-surface-container-high rounded-lg text-on-surface hover:bg-surface-low disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import PageAnimateWrapper from '@/components/page-animate-wrapper';
-import { Plus, Edit2, Trash2, X, Search, Loader2, Boxes, FileText, Filter } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Search, Loader2, Boxes, FileText, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { 
@@ -60,6 +60,10 @@ export default function KabengItemsPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // State Pagination
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   const [jurusanList, setJurusanList] = useState<Jurusan[]>([]);
   const [kategoriList, setKategoriList] = useState<Kategori[]>([]);
@@ -168,12 +172,30 @@ export default function KabengItemsPage() {
   const getLaborName = (id: number) => laborList.find(l => l.id === id)?.labor || `ID: ${id}`;
   const getKategoriName = (id: number) => kategoriList.find(k => k.id === id)?.kategori || `ID: ${id}`;
 
-  const filteredItems = displayItems.filter((item) => {
-    const userJurusanId = currentUser?.jurusan_id ? Number(currentUser.jurusan_id) : null;
-    if ((currentUser?.role === 'kabeng' || currentUser?.role === 'kaprog') && userJurusanId && Number(item.id_jurusan) !== userJurusanId) return false;
-    const q = searchQuery.toLowerCase().trim();
-    return item.nama_perangkat.toLowerCase().includes(q) || item.kode_asset_sample.toLowerCase().includes(q);
-  });
+  const filteredItems = useMemo(() => {
+    return displayItems.filter((item) => {
+      const userJurusanId = currentUser?.jurusan_id ? Number(currentUser.jurusan_id) : null;
+      if ((currentUser?.role === 'kabeng' || currentUser?.role === 'kaprog') && userJurusanId && Number(item.id_jurusan) !== userJurusanId) return false;
+      const q = searchQuery.toLowerCase().trim();
+      return item.nama_perangkat.toLowerCase().includes(q) || item.kode_asset_sample.toLowerCase().includes(q);
+    });
+  }, [displayItems, currentUser, searchQuery]);
+
+  // Kalkulasi total halaman
+  const totalPages = useMemo(() => {
+    return Math.ceil(filteredItems.length / itemsPerPage) || 1;
+  }, [filteredItems.length, itemsPerPage]);
+
+  // Potong data perangkat sesuai halaman aktif
+  const paginatedItems = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredItems.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredItems, currentPage, itemsPerPage]);
+
+  // Reset ke halaman 1 saat query pencarian atau pilihan limit halaman berubah
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, itemsPerPage]);
 
   const handleEditClick = (item: DisplayPerangkat) => {
     setEditingPerangkatId(item.id);
@@ -283,10 +305,28 @@ export default function KabengItemsPage() {
           </div>
         </div>
 
-        <div className="relative w-full sm:w-80">
-          <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-outline pointer-events-none" />
-          <input type="text" placeholder="Cari nama perangkat / kode asset..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-10 py-2.5 bg-white border border-surface-container-high rounded-xl text-base text-on-surface focus:outline-none focus:border-primary font-medium shadow-xs" />
-          {searchQuery && <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface p-1 rounded-full cursor-pointer"><X className="w-4 h-4" /></button>}
+        {/* Control Bar: Input Search & Limit Tampilan */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="relative w-full sm:w-80">
+            <Search className="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-outline pointer-events-none" />
+            <input type="text" placeholder="Cari nama perangkat / kode asset..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-10 py-2.5 bg-white border border-surface-container-high rounded-xl text-base text-on-surface focus:outline-none focus:border-primary font-medium shadow-xs" />
+            {searchQuery && <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface p-1 rounded-full cursor-pointer"><X className="w-4 h-4" /></button>}
+          </div>
+
+          <div className="flex items-center gap-2 self-end sm:self-auto">
+            <span className="text-sm font-semibold text-on-surface-variant">Tampilkan:</span>
+            <select
+              value={itemsPerPage}
+              onChange={(e) => setItemsPerPage(Number(e.target.value))}
+              className="px-3 py-2 border border-surface-container-high rounded-xl text-sm font-bold bg-white text-on-surface focus:outline-none focus:border-primary shadow-xs cursor-pointer"
+            >
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={30}>30</option>
+              <option value={50}>50</option>
+            </select>
+            <span className="text-sm font-semibold text-on-surface-variant">data</span>
+          </div>
         </div>
 
         <div className="bg-white border border-surface-container-high rounded-xl overflow-hidden shadow-sm w-full">
@@ -310,8 +350,8 @@ export default function KabengItemsPage() {
                   <tr><td colSpan={5} className="p-10 text-center text-outline">Data perangkat tidak ditemukan.</td></tr>
                 ) : (
                   <AnimatePresence initial={false}>
-                    {filteredItems.map((item) => {
-                      const { previewText, isTruncated } = formatPreviewDeskripsi(item.deskripsi);
+                    {paginatedItems.map((item) => {
+                      const { previewText } = formatPreviewDeskripsi(item.deskripsi);
 
                       return (
                         <motion.tr key={item.id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="hover:bg-surface-low/30 border-b border-surface-container">
@@ -351,6 +391,51 @@ export default function KabengItemsPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Baris Navigasi Pagination */}
+          {!loadingItems && !errorItems && filteredItems.length > 0 && (
+            <div className="p-4 border-t border-surface-container-high flex flex-col sm:flex-row items-center justify-between gap-4 bg-surface-low/50">
+              <div className="text-sm font-medium text-on-surface-variant">
+                Menampilkan <span className="font-bold text-on-surface">{(currentPage - 1) * itemsPerPage + 1}</span> - <span className="font-bold text-on-surface">{Math.min(currentPage * itemsPerPage, filteredItems.length)}</span> dari <span className="font-bold text-on-surface">{filteredItems.length}</span> perangkat
+              </div>
+
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 rounded-lg border border-surface-container-high hover:bg-surface-low text-on-surface transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Sebelumnya"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+
+                <div className="flex items-center gap-1 px-2">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
+                        currentPage === page
+                          ? 'bg-primary text-white shadow-xs'
+                          : 'hover:bg-surface-low text-on-surface-variant'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 rounded-lg border border-surface-container-high hover:bg-surface-low text-on-surface transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  title="Halaman Selanjutnya"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Modal Pop-Up Deskripsi Full */}

@@ -137,7 +137,7 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
         if (storedUser) {
           const user = JSON.parse(storedUser);
           const name = user.nama_lengkap || user.username || user.nama || 'Tenaga Pendidik';
-          const role = user.role ? `Guru - ${user.role.toUpperCase()}` : 'Guru / Tenaga Pendidik';
+          const role = user.role ? `Guru Program Studi` : 'Guru / Tenaga Pendidik';
           const initials = name.slice(0, 2).toUpperCase();
           setUserData({ name, role, initials });
           return;

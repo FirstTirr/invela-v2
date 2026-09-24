@@ -33,7 +33,7 @@ export default function SaprasLayout({ children }: { children: React.ReactNode }
         if (storedUser) {
           const user = JSON.parse(storedUser) as StoredUser;
           const name = user.nama_lengkap || user.username || user.nama || 'Tim Sapras';
-          const role = user.role ? `Sapras - ${user.role.toUpperCase()}` : 'SMKN 4 Payakumbuh';
+          const role = user.role ? `Wakil kepala bidang Sarana` : 'SMKN 4 Payakumbuh';
           const initials = name.slice(0, 2).toUpperCase();
 
           setUserData({ name, role, initials });
@@ -42,7 +42,7 @@ export default function SaprasLayout({ children }: { children: React.ReactNode }
           if (username) {
             setUserData({
               name: username,
-              role: 'SMKN 4 Payakumbuh',
+              role: 'Wakil kepala bidang Sarana',
               initials: username.slice(0, 2).toUpperCase()
             });
           }

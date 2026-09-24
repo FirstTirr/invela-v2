@@ -45,6 +45,17 @@ export default function KabengCompletedLoansPage() {
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [pdfSignData, setPdfSignData] = useState({ jabatan: "Kepala Bengkel", nama: "", nip: "-" });
 
+  // Event Handlers untuk mereset currentPage secara sinkron saat pencarian / limit berubah
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setItemsPerPage(Number(e.target.value));
+    setCurrentPage(1);
+  };
+
   useEffect(() => {
     let isMounted = true;
 
@@ -71,7 +82,7 @@ export default function KabengCompletedLoansPage() {
               detectedJurusan = found.nama_jurusan || found.nama || "";
             }
           } catch {
-            // Fallback silat
+            // Fallback
           }
         }
 
@@ -145,11 +156,6 @@ export default function KabengCompletedLoansPage() {
       );
     });
   }, [loans, searchQuery]);
-
-  // Reset Halaman Aktif ketika pencarian atau limit per halaman berubah
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, itemsPerPage]);
 
   // Perhitungan Pagination
   const totalPages = Math.ceil(filteredLoans.length / itemsPerPage) || 1;
@@ -281,7 +287,7 @@ export default function KabengCompletedLoansPage() {
               type="text"
               placeholder="Cari nama barang, kode asset, atau peminjam..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
               className="w-full pl-10 pr-4 py-2 border border-surface-container-high rounded-lg text-sm focus:outline-none focus:border-primary font-medium"
             />
           </div>
@@ -354,7 +360,7 @@ export default function KabengCompletedLoansPage() {
                   <span>Per halaman:</span>
                   <select
                     value={itemsPerPage}
-                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    onChange={handleItemsPerPageChange}
                     className="bg-white border border-surface-container-high rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer font-bold"
                   >
                     <option value={5}>5</option>

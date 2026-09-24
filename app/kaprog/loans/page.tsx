@@ -74,6 +74,22 @@ export default function KaprogLoansPage() {
     }
   };
 
+  // Handlers untuk perubahan Tab, Search, dan Pagination (Reset halaman ke 1)
+  const handleTabChange = (tab: 'aktif' | 'selesai') => {
+    setActiveTab(tab);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setItemsPerPage(Number(e.target.value));
+    setCurrentPage(1);
+  };
+
   const activeLoans = useMemo(() => {
     return loans.filter((loan) => {
       const st = loan.status?.toLowerCase();
@@ -104,11 +120,6 @@ export default function KaprogLoansPage() {
     });
   }, [currentList, searchQuery]);
 
-  // Reset Halaman ke 1 saat tab, pencarian, atau itemsPerPage berubah
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [activeTab, searchQuery, itemsPerPage]);
-
   // Kalkulasi Pagination
   const totalPages = Math.ceil(filteredList.length / itemsPerPage) || 1;
 
@@ -134,7 +145,7 @@ export default function KaprogLoansPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex bg-surface-container/60 p-1 rounded-xl w-fit border border-surface-container-high">
             <button
-              onClick={() => setActiveTab('aktif')}
+              onClick={() => handleTabChange('aktif')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${
                 activeTab === 'aktif'
                   ? 'bg-white text-primary shadow-sm'
@@ -149,7 +160,7 @@ export default function KaprogLoansPage() {
             </button>
 
             <button
-              onClick={() => setActiveTab('selesai')}
+              onClick={() => handleTabChange('selesai')}
               className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all cursor-pointer ${
                 activeTab === 'selesai'
                   ? 'bg-white text-primary shadow-sm'
@@ -170,7 +181,7 @@ export default function KaprogLoansPage() {
               type="text"
               placeholder="Cari barang / peminjam..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
               className="w-full pl-9 pr-4 py-2 bg-white border border-surface-container-high rounded-xl text-sm focus:outline-none focus:border-primary text-on-surface font-medium placeholder:text-outline"
             />
           </div>
@@ -259,7 +270,7 @@ export default function KaprogLoansPage() {
                     <span>Per halaman:</span>
                     <select
                       value={itemsPerPage}
-                      onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                      onChange={handleItemsPerPageChange}
                       className="bg-white border border-surface-container-high rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer font-bold"
                     >
                       <option value={5}>5</option>

@@ -68,6 +68,22 @@ export default function PenggunaanLaborPage() {
   const [pdfSignNama, setPdfSignNama] = useState('');
   const [pdfSignNip, setPdfSignNip] = useState('-');
 
+  // Dedicated Event Handlers untuk mereset currentPage ke 1 secara sinkron saat filter/pencarian berubah
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleLaborChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedLabor(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setItemsPerPage(Number(e.target.value));
+    setCurrentPage(1);
+  };
+
   // Fungsi manual untuk tombol "Refresh Data"
   const loadData = useCallback(async () => {
     try {
@@ -260,11 +276,6 @@ export default function PenggunaanLaborPage() {
     });
   }, [usageLogs, searchQuery, selectedLabor, userRole, userJurusanId, userJurusanName]);
 
-  // Reset Halaman ke-1 saat pencarian, filter, atau jumlah entri berubah
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedLabor, itemsPerPage]);
-
   // Perhitungan Pagination
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage) || 1;
 
@@ -396,11 +407,11 @@ export default function PenggunaanLaborPage() {
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-xl border border-surface-container-high shadow-xs">
           <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 text-outline absolute left-3 top-1/2 -translate-y-1/2" />
-            <input type="text" placeholder="Cari kelas, laboratorium, atau guru..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 text-sm border border-surface-container rounded-lg focus:outline-none focus:border-primary font-medium" />
+            <input type="text" placeholder="Cari kelas, laboratorium, atau guru..." value={searchQuery} onChange={handleSearchChange} className="w-full pl-9 pr-4 py-2 text-sm border border-surface-container rounded-lg focus:outline-none focus:border-primary font-medium" />
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <Filter className="w-4 h-4 text-outline shrink-0" />
-            <select value={selectedLabor} onChange={(e) => setSelectedLabor(e.target.value)} disabled={loadingLabor} className="w-full sm:w-auto px-3 py-2 text-sm border border-surface-container rounded-lg focus:outline-none focus:border-primary bg-white font-medium text-on-surface cursor-pointer">
+            <select value={selectedLabor} onChange={handleLaborChange} disabled={loadingLabor} className="w-full sm:w-auto px-3 py-2 text-sm border border-surface-container rounded-lg focus:outline-none focus:border-primary bg-white font-medium text-on-surface cursor-pointer">
               <option value="Semua">Semua Laboratorium Jurusan</option>
               {laborList.map((item) => {
                 const lab = item as ExtendedLabor;
@@ -484,7 +495,7 @@ export default function PenggunaanLaborPage() {
                   <span>Per halaman:</span>
                   <select
                     value={itemsPerPage}
-                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    onChange={handleItemsPerPageChange}
                     className="bg-white border border-surface-container-high rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer font-bold"
                   >
                     <option value={5}>5</option>

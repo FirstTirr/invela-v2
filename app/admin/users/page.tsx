@@ -17,19 +17,22 @@ export default function UsersCRUDPage() {
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
 
   // Modal State
-  const [isOpenModal, setIsOpenModal] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isOpenModal, setIsOpenModal] = useState<boolean>(false);
+  const [showPassword, setShowPassword] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const [jurusanList, setJurusanList] = useState<Jurusan[]>([]);
   const [loadingJurusan, setLoadingJurusan] = useState<boolean>(false);
 
-  const roleOptions = [
-    { id: 1, label: 'Kepala Bengkel (Kabeng)' },
-    { id: 2, label: 'Guru' },
-    { id: 3, label: 'Kepala Prodi (Kaprog)' },
-    { id: 4, label: 'Sarana Prasarana (Sapras)' },
-  ];
+  const roleOptions = useMemo(
+    () => [
+      { id: 1, label: 'Kepala Bengkel (Kabeng)' },
+      { id: 2, label: 'Guru' },
+      { id: 3, label: 'Kepala Prodi (Kaprog)' },
+      { id: 4, label: 'Sarana Prasarana (Sapras)' },
+    ],
+    []
+  );
 
   const [formData, setFormData] = useState({
     username: '',
@@ -81,12 +84,13 @@ export default function UsersCRUDPage() {
   useEffect(() => {
     let isMounted = true;
 
-    queueMicrotask(() => {
+    const loadData = async () => {
       if (isMounted) {
-        void fetchUsers();
-        void fetchJurusanData();
+        await Promise.all([fetchUsers(), fetchJurusanData()]);
       }
-    });
+    };
+
+    void loadData();
 
     return () => {
       isMounted = false;
@@ -95,12 +99,13 @@ export default function UsersCRUDPage() {
 
   // Helper membaca nama jurusan pengguna
   const getDisplayJurusanName = useCallback((user: UserResponse) => {
-    const rawJurusan = user.jurusan as unknown;
+    const rawJurusan = user.jurusan;
 
     if (typeof rawJurusan === 'string') {
       return rawJurusan;
-    } else if (rawJurusan && typeof rawJurusan === 'object' && 'nama_jurusan' in rawJurusan) {
-      return String((rawJurusan as { nama_jurusan?: string }).nama_jurusan || 'SEMUA JURUSAN');
+    } 
+    if (rawJurusan && typeof rawJurusan === 'object' && 'nama_jurusan' in rawJurusan) {
+      return String(rawJurusan.nama_jurusan || 'SEMUA JURUSAN');
     }
 
     return 'SEMUA JURUSAN';
@@ -224,6 +229,7 @@ export default function UsersCRUDPage() {
           </div>
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={fetchUsers}
               className="p-3 border border-surface-container-high bg-white rounded-xl hover:bg-surface-low text-on-surface transition-all cursor-pointer shadow-xs"
               title="Refresh Data"
@@ -231,6 +237,7 @@ export default function UsersCRUDPage() {
               <RefreshCw className={`w-5 h-5 ${loadingUsers ? 'animate-spin' : ''}`} />
             </button>
             <button
+              type="button"
               onClick={handleOpenModal}
               className="px-5 py-3 text-base font-bold text-white bg-primary hover:bg-primary-container rounded-xl flex items-center gap-2 transition-all active:scale-[0.98] shadow-sm cursor-pointer"
             >
@@ -253,6 +260,7 @@ export default function UsersCRUDPage() {
             />
             {searchQuery && (
               <button
+                type="button"
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-on-surface p-1 rounded-lg"
               >
@@ -327,6 +335,7 @@ export default function UsersCRUDPage() {
                         </td>
                         <td className="p-5 text-right">
                           <button
+                            type="button"
                             onClick={() => handleDelete(user.id, user.username)}
                             className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer"
                             title="Hapus Akun"
@@ -351,6 +360,7 @@ export default function UsersCRUDPage() {
 
               <div className="flex items-center gap-1">
                 <button
+                  type="button"
                   onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                   disabled={currentPage === 1}
                   className="p-2 rounded-lg border border-surface-container-high hover:bg-surface-low text-on-surface transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -362,6 +372,7 @@ export default function UsersCRUDPage() {
                 <div className="flex items-center gap-1 px-2">
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                     <button
+                      type="button"
                       key={page}
                       onClick={() => setCurrentPage(page)}
                       className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all cursor-pointer ${
@@ -376,6 +387,7 @@ export default function UsersCRUDPage() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                   disabled={currentPage === totalPages}
                   className="p-2 rounded-lg border border-surface-container-high hover:bg-surface-low text-on-surface transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
@@ -401,6 +413,7 @@ export default function UsersCRUDPage() {
                 <div className="flex justify-between items-center border-b border-surface-container pb-3">
                   <h3 className="text-xl font-bold text-on-surface">Registrasi Akun Otoritas</h3>
                   <button
+                    type="button"
                     onClick={() => { setIsOpenModal(false); setShowPassword(false); }}
                     className="text-outline hover:text-on-surface p-1.5 rounded-lg border border-surface-container cursor-pointer"
                   >
@@ -410,10 +423,11 @@ export default function UsersCRUDPage() {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
+                    <label htmlFor="username-input" className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
                       <User className="w-3.5 h-3.5" /> Username (Wajib Smkn4pyk.com)
                     </label>
                     <input
+                      id="username-input"
                       type="text"
                       required
                       pattern=".*@smkn4pyk\.com$"
@@ -426,12 +440,13 @@ export default function UsersCRUDPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center justify-between">
+                    <label htmlFor="password-input" className="text-xs font-bold text-outline uppercase tracking-wider flex items-center justify-between">
                       <span className="flex items-center gap-1.5"><Key className="w-3.5 h-3.5" /> Password</span>
                       <span className="text-[10px] text-outline tracking-normal font-medium lowercase">(Hanya kombinasi huruf dan angka, tanpa spasi)</span>
                     </label>
                     <div className="relative group">
                       <input
+                        id="password-input"
                         type={showPassword ? 'text' : 'password'}
                         required
                         pattern="[a-zA-Z0-9]+"
@@ -452,11 +467,12 @@ export default function UsersCRUDPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
+                    <label htmlFor="role-select" className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
                       <Shield className="w-3.5 h-3.5" /> Pilih Role Akses
                     </label>
                     <div className="relative">
                       <select
+                        id="role-select"
                         value={formData.role_id}
                         onChange={(e) => handleRoleChange(Number(e.target.value))}
                         className="w-full px-4 py-3 border border-surface-container-high rounded-xl text-base bg-white text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/30 transition-all duration-200 font-bold shadow-sm appearance-none cursor-pointer"
@@ -466,17 +482,18 @@ export default function UsersCRUDPage() {
                         ))}
                       </select>
                       <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-outline">
-                        <svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                        <svg className="fill-current h-4 w-4" viewBox="0 0 20 20" aria-hidden="true"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <label className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
+                    <label htmlFor="jurusan-select" className="text-xs font-bold text-outline uppercase tracking-wider flex items-center gap-1.5">
                       <Network className="w-4 h-4" /> Afiliasi Jurusan Kelolaan
                     </label>
                     <div className="relative">
                       <select
+                        id="jurusan-select"
                         disabled={isGlobalRole(formData.role_id) || loadingJurusan}
                         value={isGlobalRole(formData.role_id) ? '' : (formData.jurusan_id ?? '')}
                         onChange={(e) => setFormData({ ...formData, jurusan_id: Number(e.target.value) })}
@@ -494,7 +511,7 @@ export default function UsersCRUDPage() {
                         {loadingJurusan ? (
                           <span className="text-xs text-outline animate-pulse">Loading...</span>
                         ) : (
-                          <svg className="fill-current h-4 w-4" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                          <svg className="fill-current h-4 w-4" viewBox="0 0 20 20" aria-hidden="true"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
                         )}
                       </div>
                     </div>

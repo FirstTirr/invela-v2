@@ -34,6 +34,17 @@ export default function KabengLoansPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Dedicated Event Handlers untuk mereset currentPage ke 1 secara sinkron saat pencarian/limit berubah
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setItemsPerPage(Number(e.target.value));
+    setCurrentPage(1);
+  };
+
   const fetchLoans = useCallback(async () => {
     try {
       setLoading(true);
@@ -124,11 +135,6 @@ export default function KabengLoansPage() {
     });
   }, [loans, searchQuery]);
 
-  // Reset halaman aktif saat terjadi perubahan pencarian atau limit per halaman
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, itemsPerPage]);
-
   // Perhitungan Pagination
   const totalPages = Math.ceil(filteredLoans.length / itemsPerPage) || 1;
 
@@ -213,7 +219,7 @@ export default function KabengLoansPage() {
               type="text"
               placeholder="Cari nama barang, peminjam, kelas, atau kode asset..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
               className="w-full pl-10 pr-4 py-2 border border-surface-container-high rounded-lg text-sm focus:outline-none focus:border-primary font-medium"
             />
           </div>
@@ -304,7 +310,7 @@ export default function KabengLoansPage() {
                   <span>Per halaman:</span>
                   <select
                     value={itemsPerPage}
-                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    onChange={handleItemsPerPageChange}
                     className="bg-white border border-surface-container-high rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer font-bold"
                   >
                     <option value={5}>5</option>

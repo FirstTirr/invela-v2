@@ -56,7 +56,7 @@ export default function RepairHistoryPage() {
       setErrorMsg("");
 
       const userStr = typeof window !== "undefined" ? localStorage.getItem("user") : null;
-      const currentUser = userStr ? JSON.parse(userStr) : null;
+      const currentUser = userStr ? (JSON.parse(userStr) as { jurusan_id?: number; jurusan?: { nama_jurusan?: string; nama?: string }; nama_jurusan?: string; jurusan_nama?: string }) : null;
       const myJurusanId = currentUser?.jurusan_id ? String(currentUser.jurusan_id) : null;
 
       // 1. Ambil Nama Jurusan User Login
@@ -148,16 +148,18 @@ export default function RepairHistoryPage() {
   const formatRupiah = (amount: number) =>
     new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(amount || 0);
 
-  const filteredData = historyList.filter((item) => {
-    const q = searchQuery.toLowerCase();
-    const pelapor = pelaporMap[item.kerusakan_id] || item.nama_teknisi || "";
-    return (
-      (item.nama_perangkat && item.nama_perangkat.toLowerCase().includes(q)) ||
-      (item.kode_asset && item.kode_asset.toLowerCase().includes(q)) ||
-      pelapor.toLowerCase().includes(q) ||
-      (item.deskripsi_perbaikan && item.deskripsi_perbaikan.toLowerCase().includes(q))
-    );
-  });
+  const filteredData = useMemo(() => {
+    return historyList.filter((item) => {
+      const q = searchQuery.toLowerCase();
+      const pelapor = pelaporMap[item.kerusakan_id] || item.nama_teknisi || "";
+      return (
+        (item.nama_perangkat && item.nama_perangkat.toLowerCase().includes(q)) ||
+        (item.kode_asset && item.kode_asset.toLowerCase().includes(q)) ||
+        pelapor.toLowerCase().includes(q) ||
+        (item.deskripsi_perbaikan && item.deskripsi_perbaikan.toLowerCase().includes(q))
+      );
+    });
+  }, [historyList, searchQuery, pelaporMap]);
 
   // Reset Halaman ke 1 jika ada pencarian baru atau opsi per halaman berubah
   useEffect(() => {
@@ -175,10 +177,15 @@ export default function RepairHistoryPage() {
   const startIndex = (currentPage - 1) * itemsPerPage + 1;
   const endIndex = Math.min(currentPage * itemsPerPage, filteredData.length);
 
-  const totalBiaya = filteredData.reduce((acc, curr) => acc + (Number(curr.biaya) || 0), 0);
+  const totalBiaya = useMemo(() => {
+    return filteredData.reduce((acc, curr) => acc + (Number(curr.biaya) || 0), 0);
+  }, [filteredData]);
 
   const handleExportExcel = () => {
-    if (filteredData.length === 0) return alert("Tidak ada data untuk diexport.");
+    if (filteredData.length === 0) {
+      alert("Tidak ada data untuk diexport.");
+      return;
+    }
     const excelData = filteredData.map((item, index) => ({
       No: index + 1,
       Tanggal: formatDate(item.tanggal_perbaikan),
@@ -252,6 +259,14 @@ export default function RepairHistoryPage() {
     doc.save(`Riwayat_Perbaikan_${userJurusanName.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.pdf`);
   };
 
+  const handleOpenPdfModal = () => {
+    if (filteredData.length === 0) {
+      alert("Tidak ada data.");
+      return;
+    }
+    setIsPdfModalOpen(true);
+  };
+
   return (
     <PageAnimateWrapper>
       <div className="space-y-6 font-sans tracking-tight">
@@ -269,10 +284,10 @@ export default function RepairHistoryPage() {
           </div>
 
           <div className="flex items-center gap-2">
-            <button onClick={handleExportExcel} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl flex items-center gap-2 shadow-xs cursor-pointer">
+            <button type="button" onClick={handleExportExcel} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl flex items-center gap-2 shadow-xs cursor-pointer">
               <FileSpreadsheet className="w-4 h-4" /> Export Excel
             </button>
-            <button onClick={() => { if (filteredData.length === 0) return alert("Tidak ada data."); setIsPdfModalOpen(true); }} className="px-4 py-2 bg-primary hover:bg-primary-container text-white font-bold text-sm rounded-xl flex items-center gap-2 shadow-xs cursor-pointer">
+            <button type="button" onClick={handleOpenPdfModal} className="px-4 py-2 bg-primary hover:bg-primary-container text-white font-bold text-sm rounded-xl flex items-center gap-2 shadow-xs cursor-pointer">
               <Printer className="w-4 h-4" /> Export PDF
             </button>
           </div>
@@ -417,7 +432,7 @@ export default function RepairHistoryPage() {
                 <FileCheck className="w-5 h-5 text-primary" />
                 <h3 className="text-base font-bold">Informasi Tanda Tangan</h3>
               </div>
-              <button onClick={() => setIsPdfModalOpen(false)} className="text-outline hover:text-on-surface">
+              <button type="button" onClick={() => setIsPdfModalOpen(false)} className="text-outline hover:text-on-surface">
                 <X className="w-5 h-5" />
               </button>
             </div>

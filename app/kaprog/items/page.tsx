@@ -133,6 +133,27 @@ export default function KaprogItemsPage() {
     setSelectedItem(null);
   };
 
+  // Dedicated Event Handlers untuk mereset currentPage ke 1 saat filter berubah
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleLaborChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedLabor(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleKategoriChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedKategori(e.target.value);
+    setCurrentPage(1);
+  };
+
+  const handleItemsPerPageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setItemsPerPage(Number(e.target.value));
+    setCurrentPage(1);
+  };
+
   // Filter Data berdasarkan Search Query, Labor, dan Kategori
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
@@ -152,11 +173,6 @@ export default function KaprogItemsPage() {
       return matchesSearch && matchesLabor && matchesKategori;
     });
   }, [items, searchQuery, selectedLabor, selectedKategori]);
-
-  // Reset Halaman ke 1 saat filter atau jumlah per halaman berubah
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedLabor, selectedKategori, itemsPerPage]);
 
   // Kalkulasi Pagination
   const totalPages = Math.ceil(filteredItems.length / itemsPerPage) || 1;
@@ -188,7 +204,7 @@ export default function KaprogItemsPage() {
               type="text"
               placeholder="Cari nama perangkat / kode asset..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
               className="w-full pl-10 pr-4 py-2 text-sm border border-surface-container-high rounded-xl bg-white text-on-surface focus:outline-none focus:border-primary font-medium"
             />
           </div>
@@ -198,7 +214,7 @@ export default function KaprogItemsPage() {
               <Filter className="w-4 h-4 text-outline shrink-0" />
               <select
                 value={selectedLabor}
-                onChange={(e) => setSelectedLabor(e.target.value)}
+                onChange={handleLaborChange}
                 className="w-full sm:w-auto px-3 py-2 text-sm border border-surface-container-high rounded-xl focus:outline-none focus:border-primary bg-white font-medium text-on-surface cursor-pointer"
               >
                 <option value="semua">Semua Labor</option>
@@ -212,7 +228,7 @@ export default function KaprogItemsPage() {
 
             <select
               value={selectedKategori}
-              onChange={(e) => setSelectedKategori(e.target.value)}
+              onChange={handleKategoriChange}
               className="w-full sm:w-auto px-3 py-2 text-sm border border-surface-container-high rounded-xl focus:outline-none focus:border-primary bg-white font-medium text-on-surface cursor-pointer"
             >
               <option value="semua">Semua Kategori</option>
@@ -340,7 +356,7 @@ export default function KaprogItemsPage() {
                   <span>Per halaman:</span>
                   <select
                     value={itemsPerPage}
-                    onChange={(e) => setItemsPerPage(Number(e.target.value))}
+                    onChange={handleItemsPerPageChange}
                     className="bg-white border border-surface-container-high rounded-lg px-2 py-1 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer font-bold"
                   >
                     <option value={5}>5</option>

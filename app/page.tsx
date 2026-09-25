@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ShieldCheck, UserCheck, GraduationCap, Wrench, PieChart,
   ShieldAlert, Menu, X, Zap, Clock, Smartphone, Database,
@@ -112,6 +113,7 @@ export default function Home() {
 
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isClosingGate, setIsClosingGate] = useState(false);
 
   // Read Auth State Safely
   const [{ isLoggedIn, userRole, checkingAuth }] = useState(() => {
@@ -135,10 +137,12 @@ export default function Home() {
     return { isLoggedIn: false, userRole: null, checkingAuth: false };
   });
 
-  // Redirect Effect
+  // Redirect Effect if already logged in
   useEffect(() => {
     if (isLoggedIn && userRole) {
       router.replace(`/${userRole}`);
+    } else {
+      router.prefetch("/login");
     }
   }, [isLoggedIn, userRole, router]);
 
@@ -155,10 +159,30 @@ export default function Home() {
     setMobileMenuOpen(false);
     const element = document.getElementById(targetId);
     if (element) {
-      const yOffset = -90; // Adjust offset for floating navbar height
+      const yOffset = -90;
       const y = element.getBoundingClientRect().top + window.pageYOffset + yOffset;
       window.scrollTo({ top: y, behavior: "smooth" });
     }
+  };
+
+  // HANDLER NAVIGASI DENGAN ANIMASI GERBANG MENUTUP
+  const handleNavigateToAuth = (e: React.MouseEvent, targetPath?: string) => {
+    e.preventDefault();
+    setMobileMenuOpen(false);
+
+    const destination = targetPath || (isLoggedIn && userRole ? `/${userRole}` : "/login");
+
+    if (isLoggedIn) {
+      router.push(destination);
+      return;
+    }
+
+    // Pemicu Animasi Tutup Gerbang
+    setIsClosingGate(true);
+
+    setTimeout(() => {
+      router.push(destination);
+    }, 700);
   };
 
   const theme = {
@@ -183,7 +207,49 @@ export default function Home() {
   }
 
   return (
-    <div className={`min-h-screen transition-colors duration-300 ${theme.bg} selection:bg-cyan-500 selection:text-slate-900 overflow-x-hidden font-sans scroll-smooth`}>
+    <div className={`min-h-screen transition-colors duration-300 ${theme.bg} selection:bg-cyan-500 selection:text-slate-900 overflow-x-hidden font-sans scroll-smooth relative`}>
+      
+      {/* ANIMASI GERBANG MENUTUP (GATE OVERLAY) */}
+      <AnimatePresence>
+        {isClosingGate && (
+          <div className="fixed inset-0 z-[100] flex pointer-events-none overflow-hidden">
+            {/* Gerbang Kiri */}
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              transition={{ duration: 0.7, ease: [0.77, 0, 0.175, 1] }}
+              className="w-1/2 h-full bg-gradient-to-br from-primary via-primary/95 to-primary-container p-12 hidden lg:flex flex-col justify-between border-r border-white/10 shadow-2xl relative"
+            >
+              <div className="flex items-center gap-2 text-white/90">
+                <ShieldCheck className="w-5 h-5 text-white animate-pulse" />
+                <span className="text-xs font-bold tracking-widest uppercase">TeFa RPL BCS</span>
+              </div>
+              <div className="space-y-3">
+                <h2 className="text-3xl font-extrabold text-white leading-tight">Invela Control</h2>
+                <p className="text-xs text-white/70">Membuka Gerbang Otentikasi System...</p>
+              </div>
+              <div className="text-xs text-white/40">&copy; {new Date().getFullYear()} Invela Control</div>
+            </motion.div>
+
+            {/* Gerbang Kanan (Mobile/Responsive Menutupi Seluruh Layar di Mobile) */}
+            <motion.div
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              transition={{ duration: 0.7, ease: [0.77, 0, 0.175, 1] }}
+              className="w-full lg:w-1/2 h-full bg-white flex flex-col items-center justify-center p-8 shadow-2xl relative"
+            >
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-primary to-primary-container flex items-center justify-center text-white font-black text-lg shadow-md">
+                  IC
+                </div>
+                <Loader2 className="w-6 h-6 animate-spin text-primary mt-2" />
+                <p className="text-xs font-bold tracking-widest uppercase text-slate-400">Menuju Portal Login...</p>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
@@ -234,9 +300,10 @@ export default function Home() {
 
             <div className="hidden md:flex items-center gap-4">
               <ThemeToggle />
-              <Link
-                href={isLoggedIn && userRole ? `/${userRole}` : "/login"}
-                className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 ${
+              <button
+                type="button"
+                onClick={(e) => handleNavigateToAuth(e)}
+                className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 cursor-pointer ${
                   isLoggedIn
                     ? "bg-gradient-to-r from-cyan-500 to-blue-600 text-white shadow-lg shadow-cyan-500/25 hover:scale-105"
                     : isLight ? "bg-slate-900 text-white hover:bg-slate-800" : "bg-white text-slate-900 hover:bg-cyan-50"
@@ -244,7 +311,7 @@ export default function Home() {
               >
                 {isLoggedIn ? <LayoutDashboard className="w-4 h-4" /> : null}
                 <span>{isLoggedIn ? "Dashboard" : "Login"}</span>
-              </Link>
+              </button>
             </div>
 
             <button className={`md:hidden p-2 ${theme.textHead}`} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -273,14 +340,14 @@ export default function Home() {
               <span className="text-sm font-medium">Tema Visual</span>
               <ThemeToggle />
             </div>
-            <Link
-              href={isLoggedIn && userRole ? `/${userRole}` : "/login"}
-              onClick={() => setMobileMenuOpen(false)}
-              className="text-center py-3 bg-cyan-500 text-slate-900 rounded-xl font-bold flex items-center justify-center gap-2"
+            <button
+              type="button"
+              onClick={(e) => handleNavigateToAuth(e)}
+              className="text-center py-3 bg-cyan-500 text-slate-900 rounded-xl font-bold flex items-center justify-center gap-2 w-full cursor-pointer"
             >
               {isLoggedIn && <LayoutDashboard className="w-4 h-4" />}
               <span>{isLoggedIn ? `Buka Dashboard (${userRole?.toUpperCase()})` : "Login Portal"}</span>
-            </Link>
+            </button>
           </div>
         )}
       </nav>
@@ -448,10 +515,11 @@ export default function Home() {
             {ROLES.map((item, idx) => {
               const RoleIcon = item.icon;
               return (
-                <Link
+                <button
                   key={idx}
-                  href={isLoggedIn && userRole ? `/${userRole}` : "/login"}
-                  className={`group relative h-80 p-6 rounded-3xl border backdrop-blur-xl flex flex-col justify-between overflow-hidden transition-all duration-500 hover:-translate-y-2.5 ${
+                  type="button"
+                  onClick={(e) => handleNavigateToAuth(e)}
+                  className={`group relative h-80 p-6 rounded-3xl border backdrop-blur-xl flex flex-col justify-between overflow-hidden transition-all duration-500 hover:-translate-y-2.5 text-left cursor-pointer w-full ${
                     isLight
                       ? "bg-white/80 border-slate-200 shadow-lg hover:shadow-2xl"
                       : `bg-slate-900/60 border-slate-800/80 ${item.glow}`
@@ -496,7 +564,7 @@ export default function Home() {
 
                   {/* Bottom Subtle Light Bar */}
                   <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-cyan-400 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                </Link>
+                </button>
               );
             })}
           </div>

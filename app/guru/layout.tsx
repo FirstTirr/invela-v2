@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   ClipboardList, AlertTriangle, LogOut, UserCheck, 
-  PanelLeftClose, PanelRightClose, Menu, X 
+  PanelLeftClose, PanelRightClose, Menu, X, ShieldCheck, Loader2 
 } from 'lucide-react';
 import { Separator } from "@/components/ui/separator";
+import { motion, AnimatePresence } from 'framer-motion';
 
 const guruMenu = [
   { title: 'Lapor Pemakaian Labor', href: '/guru', icon: ClipboardList },
@@ -21,6 +22,7 @@ interface SidebarContentProps {
   setIsSidebarOpen: (open: boolean) => void;
   setIsMobileOpen: (open: boolean) => void;
   onLogout: (e?: React.MouseEvent) => void;
+  isLoggingOut: boolean;
 }
 
 function SidebarContent({
@@ -29,10 +31,11 @@ function SidebarContent({
   userData,
   setIsSidebarOpen,
   setIsMobileOpen,
-  onLogout
+  onLogout,
+  isLoggingOut,
 }: SidebarContentProps) {
   return (
-    <div className="flex flex-col h-full justify-between bg-white">
+    <div className="flex flex-col h-full justify-between bg-white font-sans">
       <div>
         {/* Header Sidebar */}
         <div className="h-20 px-6 flex items-center justify-between bg-white shrink-0">
@@ -41,7 +44,7 @@ function SidebarContent({
               GR
             </div>
             <div>
-              <h1 className="text-xs font-bold tracking-wider text-on-surface font-sans uppercase">INVELA CONTROL</h1>
+              <h1 className="text-xs font-bold tracking-wider text-on-surface uppercase">INVELA CONTROL</h1>
               <p className="text-[10px] font-semibold tracking-wider text-amber-700 uppercase flex items-center gap-1 mt-0.5">
                 <UserCheck className="w-3 h-3 text-amber-600" /> Guru / Instructor Access
               </p>
@@ -107,9 +110,10 @@ function SidebarContent({
 
           <button 
             type="button"
+            disabled={isLoggingOut}
             onClick={onLogout}
             title="Keluar / Logout"
-            className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0"
+            className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -120,9 +124,13 @@ function SidebarContent({
 }
 
 export default function GuruLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // State untuk pemicu animasi logout gerbang menutup
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [userData, setUserData] = useState({
     name: 'Tenaga Pendidik',
@@ -131,6 +139,9 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
   });
 
   useEffect(() => {
+    // Prefetch halaman login
+    router.prefetch('/login');
+
     const loadUserData = () => {
       try {
         const storedUser = localStorage.getItem('user');
@@ -156,30 +167,88 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
     };
 
     loadUserData();
-  }, []);
+  }, [router]);
 
   const handleLogout = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
     if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
 
-    localStorage.clear();
-    sessionStorage.clear();
+    // 1. Jalankan Animasi Gerbang Menutup
+    setIsLoggingOut(true);
 
-    const cookies = document.cookie.split(";");
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i];
-      const eqPos = cookie.indexOf("=");
-      const name = eqPos > -1 ? cookie.substring(0, eqPos).trim() : cookie.trim();
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
-    }
+    // 2. Beri jeda 800ms sampai gerbang menutup rapat, lalu hapus sesi & redirect
+    setTimeout(() => {
+      localStorage.clear();
+      sessionStorage.clear();
 
-    window.location.href = '/login';
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i];
+        const eqPos = cookie.indexOf("=");
+        const name = eqPos > -1 ? cookie.substring(0, eqPos).trim() : cookie.trim();
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+      }
+
+      window.location.href = '/login';
+    }, 800);
   };
 
   return (
-    <div className="min-h-screen bg-background text-on-surface antialiased flex flex-col lg:flex-row selection:bg-secondary-container">
+    <div className="min-h-screen bg-background text-on-surface antialiased flex flex-col lg:flex-row selection:bg-secondary-container relative overflow-hidden">
       
+      {/* OVERLAY ANIMASI GERBANG MENUTUP (LOGOUT GATE CLOSING) */}
+      <AnimatePresence>
+        {isLoggingOut && (
+          <div className="fixed inset-0 z-50 flex pointer-events-none overflow-hidden">
+            
+            {/* GERBANG KIRI (Meluncur dari -100% ke 0%) */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              transition={{ duration: 0.8, ease: [0.77, 0, 0.175, 1] }}
+              className="w-[45%] h-full bg-gradient-to-br from-primary via-primary/95 to-primary-container p-12 hidden lg:flex flex-col justify-between shadow-2xl relative pointer-events-auto"
+            >
+              <div className="flex items-center gap-2 text-white/90">
+                <ShieldCheck className="w-5 h-5 text-white animate-pulse" />
+                <span className="text-xs font-bold tracking-widest uppercase">TeFa RPL BCS</span>
+              </div>
+              <div className="space-y-4">
+                <h2 className="text-4xl font-extrabold text-white leading-tight">
+                  Sistem Manajemen & <br />
+                  Kontrol Inventaris Labor.
+                </h2>
+                <p className="text-sm text-white/70 font-medium max-w-md">
+                  Menutup sesi keamanan pengguna...
+                </p>
+              </div>
+              <div className="text-xs text-white/50 font-medium">
+                &copy; {new Date().getFullYear()} Invela Control.
+              </div>
+            </motion.div>
+
+            {/* GERBANG KANAN (Meluncur dari 100% ke 0%) */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              transition={{ duration: 0.8, ease: [0.77, 0, 0.175, 1] }}
+              className="flex-1 h-full bg-white flex flex-col items-center justify-center p-8 shadow-2xl relative pointer-events-auto"
+            >
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-primary to-primary-container flex items-center justify-center text-white font-black text-xl shadow-md shadow-primary/20">
+                  IC
+                </div>
+                <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Mengakhiri Sesi...</span>
+                </div>
+              </div>
+            </motion.div>
+
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Sidebar Desktop Collapsible */}
       <aside 
         className={`hidden lg:block fixed inset-y-0 left-0 bg-white border-r border-surface-container-high z-20 transition-all duration-300 ease-in-out ${
@@ -194,6 +263,7 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
             setIsSidebarOpen={setIsSidebarOpen}
             setIsMobileOpen={setIsMobileOpen}
             onLogout={handleLogout}
+            isLoggingOut={isLoggingOut}
           />
         </div>
       </aside>
@@ -250,6 +320,7 @@ export default function GuruLayout({ children }: { children: React.ReactNode }) 
                   setIsSidebarOpen={setIsSidebarOpen}
                   setIsMobileOpen={setIsMobileOpen}
                   onLogout={handleLogout}
+                  isLoggingOut={isLoggingOut}
                 />
               </div>
             </div>

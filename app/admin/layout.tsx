@@ -2,11 +2,12 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, UserCheck, FilePlus, ChevronDown, 
-  Menu, X, LogOut, Database, PanelLeftClose, PanelRightClose 
+  Menu, X, LogOut, Database, PanelLeftClose, PanelRightClose, ShieldCheck, Loader2 
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface SidebarContentProps {
   isMobile?: boolean;
@@ -19,6 +20,7 @@ interface SidebarContentProps {
   handleLogout: (e?: React.MouseEvent) => void;
   mainNavItems: Array<{ label: string; href: string; icon: React.ElementType }>;
   subMenuItems: Array<{ label: string; href: string }>;
+  isLoggingOut: boolean;
 }
 
 const SidebarContent = ({
@@ -32,6 +34,7 @@ const SidebarContent = ({
   handleLogout,
   mainNavItems,
   subMenuItems,
+  isLoggingOut,
 }: SidebarContentProps) => (
   <div className="flex flex-col h-full justify-between p-5 font-sans">
     <div className="space-y-7">
@@ -139,9 +142,10 @@ const SidebarContent = ({
 
       <button 
         type="button"
+        disabled={isLoggingOut}
         onClick={handleLogout}
         title="Keluar dari Akun"
-        className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0"
+        className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
       >
         <LogOut className="w-5 h-5" />
       </button>
@@ -150,14 +154,21 @@ const SidebarContent = ({
 );
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const pathname = usePathname();
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  
+  // State animasi logout gerbang menutup
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [userData, setUserData] = useState({ name: 'Admin Root', role: 'ADMINISTRATOR', initials: 'AD' });
 
   useEffect(() => {
+    // Prefetch halaman login agar transisi secepat kilat
+    router.prefetch('/login');
+
     const loadUserData = () => {
       try {
         const storedUser = localStorage.getItem('user');
@@ -184,25 +195,31 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     };
 
     loadUserData();
-  }, []);
+  }, [router]);
 
   const handleLogout = (e?: React.MouseEvent) => {
     if (e) e.preventDefault();
     if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
 
-    localStorage.clear();
-    sessionStorage.clear();
+    // 1. Picu Animasi Gerbang Menutup
+    setIsLoggingOut(true);
 
-    const cookies = document.cookie.split(";");
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i];
-      const eqPos = cookie.indexOf("=");
-      const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
-    }
+    // 2. Tunggu hingga animasi gerbang menutup penuh (800ms) baru bersihkan data & redirect
+    setTimeout(() => {
+      localStorage.clear();
+      sessionStorage.clear();
 
-    window.location.href = '/login';
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i];
+        const eqPos = cookie.indexOf("=");
+        const name = eqPos > -1 ? cookie.substr(0, eqPos).trim() : cookie.trim();
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+      }
+
+      window.location.href = '/login';
+    }, 800);
   };
 
   const subMenuItems = [
@@ -228,11 +245,64 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     handleLogout,
     mainNavItems,
     subMenuItems,
+    isLoggingOut,
   };
 
   return (
-    <div className="min-h-screen w-full bg-surface-bright flex text-on-surface antialiased tracking-tight">
+    <div className="min-h-screen w-full bg-surface-bright flex text-on-surface antialiased tracking-tight relative overflow-hidden">
       
+      {/* OVERLAY ANIMASI GERBANG MENUTUP (LOGOUT GATE CLOSING) */}
+      <AnimatePresence>
+        {isLoggingOut && (
+          <div className="fixed inset-0 z-50 flex pointer-events-none overflow-hidden">
+            
+            {/* GERBANG KIRI (Dari -100% meluncur ke 0%) */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              transition={{ duration: 0.8, ease: [0.77, 0, 0.175, 1] }}
+              className="w-[45%] h-full bg-gradient-to-br from-primary via-primary/95 to-primary-container p-12 hidden lg:flex flex-col justify-between shadow-2xl relative pointer-events-auto"
+            >
+              <div className="flex items-center gap-2 text-white/90">
+                <ShieldCheck className="w-5 h-5 text-white animate-pulse" />
+                <span className="text-xs font-bold tracking-widest uppercase">TeFa RPL BCS</span>
+              </div>
+              <div className="space-y-4">
+                <h2 className="text-4xl font-extrabold text-white leading-tight">
+                  Sistem Manajemen & <br />
+                  Kontrol Inventaris Labor.
+                </h2>
+                <p className="text-sm text-white/70 font-medium max-w-md">
+                  Menutup sesi keamanan pengguna...
+                </p>
+              </div>
+              <div className="text-xs text-white/50 font-medium">
+                &copy; {new Date().getFullYear()} Invela Control.
+              </div>
+            </motion.div>
+
+            {/* GERBANG KANAN (Dari 100% meluncur ke 0%) */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              transition={{ duration: 0.8, ease: [0.77, 0, 0.175, 1] }}
+              className="flex-1 h-full bg-white flex flex-col items-center justify-center p-8 shadow-2xl relative pointer-events-auto"
+            >
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-primary to-primary-container flex items-center justify-center text-white font-black text-xl shadow-md shadow-primary/20">
+                  IC
+                </div>
+                <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Mengakhiri Sesi...</span>
+                </div>
+              </div>
+            </motion.div>
+
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* Sidebar Desktop */}
       <aside 
         className={`hidden lg:block bg-white border-r border-surface-container shrink-0 h-screen sticky top-0 transition-all duration-300 ease-in-out ${

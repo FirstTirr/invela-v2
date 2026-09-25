@@ -1,13 +1,14 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, PackagePlus, ClipboardList, 
   AlertTriangle, User, LogOut, Menu, X, MonitorCheck, History,
-  ChevronDown, PanelLeftClose, PanelRightClose
+  ChevronDown, PanelLeftClose, PanelRightClose, ShieldCheck, Loader2
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface SubMenuItem {
   title: string;
@@ -33,6 +34,7 @@ interface SidebarContentProps {
   setOpenLoansDropdown: React.Dispatch<React.SetStateAction<boolean>>;
   setOpenDamagesDropdown: React.Dispatch<React.SetStateAction<boolean>>;
   onLogout: (e?: React.MouseEvent<HTMLButtonElement>) => void;
+  isLoggingOut: boolean;
 }
 
 const kabengMenu: MenuItem[] = [
@@ -67,7 +69,8 @@ function SidebarContent({
   setIsMobileOpen,
   setOpenLoansDropdown,
   setOpenDamagesDropdown,
-  onLogout
+  onLogout,
+  isLoggingOut
 }: SidebarContentProps) {
   return (
     <div className="flex flex-col h-full justify-between p-5 font-sans bg-white">
@@ -191,9 +194,10 @@ function SidebarContent({
         </div>
         <button 
           type="button"
+          disabled={isLoggingOut}
           onClick={onLogout} 
           title="Keluar dari Akun"
-          className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0"
+          className="p-2 text-outline hover:text-error hover:bg-error-container/40 rounded-lg transition-colors cursor-pointer shrink-0 disabled:opacity-50"
         >
           <LogOut className="w-5 h-5" />
         </button>
@@ -203,9 +207,13 @@ function SidebarContent({
 }
 
 export default function KabengLayout({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // State untuk mengontrol animasi logout gerbang menutup
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [openLoansDropdown, setOpenLoansDropdown] = useState(() => pathname.startsWith('/kabeng/loans'));
   const [openDamagesDropdown, setOpenDamagesDropdown] = useState(() => pathname.startsWith('/kabeng/damages'));
@@ -237,27 +245,90 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
     return { name: 'Kepala Bengkel', role: 'SMKN 4 Payakumbuh', initials: 'KB' };
   });
 
+  useEffect(() => {
+    router.prefetch('/login');
+  }, [router]);
+
   const handleLogout = (e?: React.MouseEvent<HTMLButtonElement>) => {
     if (e) e.preventDefault();
     if (!window.confirm("Apakah Anda yakin ingin keluar dari sistem?")) return;
 
-    localStorage.clear();
-    sessionStorage.clear();
+    // 1. Pemicu animasi gerbang menutup
+    setIsLoggingOut(true);
 
-    const cookies = document.cookie.split(";");
-    for (let i = 0; i < cookies.length; i++) {
-      const cookie = cookies[i];
-      const eqPos = cookie.indexOf("=");
-      const name = eqPos > -1 ? cookie.slice(0, eqPos).trim() : cookie.trim();
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
-      document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
-    }
+    // 2. Beri jeda 800ms sampai animasi gerbang selesai, baru hapus sesi & redirect
+    setTimeout(() => {
+      localStorage.clear();
+      sessionStorage.clear();
 
-    window.location.href = '/login';
+      const cookies = document.cookie.split(";");
+      for (let i = 0; i < cookies.length; i++) {
+        const cookie = cookies[i];
+        const eqPos = cookie.indexOf("=");
+        const name = eqPos > -1 ? cookie.slice(0, eqPos).trim() : cookie.trim();
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+        document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; domain=${window.location.hostname};`;
+      }
+
+      window.location.href = '/login';
+    }, 800);
   };
 
   return (
-    <div className="min-h-screen bg-background text-on-surface antialiased flex selection:bg-secondary-container">
+    <div className="min-h-screen bg-background text-on-surface antialiased flex selection:bg-secondary-container relative overflow-hidden">
+      
+      {/* OVERLAY ANIMASI GERBANG MENUTUP (LOGOUT GATE CLOSING) */}
+      <AnimatePresence>
+        {isLoggingOut && (
+          <div className="fixed inset-0 z-50 flex pointer-events-none overflow-hidden">
+            
+            {/* GERBANG KIRI (Meluncur dari -100% ke 0%) */}
+            <motion.div
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              transition={{ duration: 0.8, ease: [0.77, 0, 0.175, 1] }}
+              className="w-[45%] h-full bg-gradient-to-br from-primary via-primary/95 to-primary-container p-12 hidden lg:flex flex-col justify-between shadow-2xl relative pointer-events-auto"
+            >
+              <div className="flex items-center gap-2 text-white/90">
+                <ShieldCheck className="w-5 h-5 text-white animate-pulse" />
+                <span className="text-xs font-bold tracking-widest uppercase">TeFa RPL BCS</span>
+              </div>
+              <div className="space-y-4">
+                <h2 className="text-4xl font-extrabold text-white leading-tight">
+                  Sistem Manajemen & <br />
+                  Kontrol Inventaris Labor.
+                </h2>
+                <p className="text-sm text-white/70 font-medium max-w-md">
+                  Menutup sesi keamanan pengguna...
+                </p>
+              </div>
+              <div className="text-xs text-white/50 font-medium">
+                &copy; {new Date().getFullYear()} Invela Control.
+              </div>
+            </motion.div>
+
+            {/* GERBANG KANAN (Meluncur dari 100% ke 0%) */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              transition={{ duration: 0.8, ease: [0.77, 0, 0.175, 1] }}
+              className="flex-1 h-full bg-white flex flex-col items-center justify-center p-8 shadow-2xl relative pointer-events-auto"
+            >
+              <div className="flex flex-col items-center gap-3 text-center">
+                <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-primary to-primary-container flex items-center justify-center text-white font-black text-xl shadow-md shadow-primary/20">
+                  IC
+                </div>
+                <div className="flex items-center gap-2 text-primary font-bold text-sm uppercase tracking-wider">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Mengakhiri Sesi...</span>
+                </div>
+              </div>
+            </motion.div>
+
+          </div>
+        )}
+      </AnimatePresence>
+
       <aside 
         className={`hidden lg:block bg-white border-r border-surface-container-high shrink-0 h-screen sticky top-0 z-20 transition-all duration-300 ease-in-out ${
           isSidebarOpen ? 'w-72 opacity-100' : 'w-0 opacity-0 overflow-hidden border-none'
@@ -275,6 +346,7 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
             setOpenLoansDropdown={setOpenLoansDropdown}
             setOpenDamagesDropdown={setOpenDamagesDropdown}
             onLogout={handleLogout}
+            isLoggingOut={isLoggingOut}
           />
         </div>
       </aside>
@@ -337,6 +409,7 @@ export default function KabengLayout({ children }: { children: React.ReactNode }
                   setOpenLoansDropdown={setOpenLoansDropdown}
                   setOpenDamagesDropdown={setOpenDamagesDropdown}
                   onLogout={handleLogout}
+                  isLoggingOut={isLoggingOut}
                 />
               </div>
             </div>
